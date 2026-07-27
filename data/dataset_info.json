@@ -1,4 +1,49 @@
 {
+  "BrickNet-MM-PT": {
+    "file_name": "BrickNet-MM_PT.json",
+    "formatting": "sharegpt",
+    "columns": {
+        "messages": "messages",
+        "images": "images"
+    },
+    "tags": {
+        "role_tag": "role",
+        "content_tag": "content",
+        "user_tag": "user",
+        "assistant_tag": "assistant",
+        "system_tag": "system"
+    }
+  },
+  "BrickNet-MM-SFT": {
+    "file_name": "BrickNet-MM_SFT.json",
+    "formatting": "sharegpt",
+    "columns": {
+        "messages": "messages",
+        "images": "images"
+    },
+    "tags": {
+        "role_tag": "role",
+        "content_tag": "content",
+        "user_tag": "user",
+        "assistant_tag": "assistant",
+        "system_tag": "system"
+    }
+  },
+  "BrickNet-MM-VAL": {
+    "file_name": "BrickNet-MM_VAL.json",
+    "formatting": "sharegpt",
+    "columns": {
+        "messages": "messages",
+        "images": "images"
+    },
+    "tags": {
+        "role_tag": "role",
+        "content_tag": "content",
+        "user_tag": "user",
+        "assistant_tag": "assistant",
+        "system_tag": "system"
+    }
+  },
   "identity": {
     "file_name": "identity.json"
   },
