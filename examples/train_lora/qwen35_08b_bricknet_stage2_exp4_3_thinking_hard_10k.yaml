@@ -1,6 +1,6 @@
-### Stage-2 NonThinking base config
-# Default scale is 10k. Use scripts/launch_bricknet_stage2_sft.py for every run;
-# the launcher performs Stage-0/data/hash gates and applies scale-specific paths.
+### exp4_3: Stage-2 Thinking-Hard 10k
+# Explicit <think>/<action> is ordinary supervised assistant text.
+# Qwen native thinking stays disabled; use the gated launcher for every run.
 
 ### model
 model_name_or_path: Qwen/Qwen3.5-0.8B
@@ -22,7 +22,7 @@ freeze_vision_tower: true
 freeze_multi_modal_projector: true
 
 ### dataset
-dataset: BrickNet-Stage2-NonThinking-10k
+dataset: BrickNet-Stage2-ThinkingHard-10k
 dataset_dir: data
 media_dir: /home/jiahao/task/BrickNet
 template: qwen3_5_nothink
@@ -32,14 +32,14 @@ train_on_prompt: false
 packing: false
 preprocessing_num_workers: 16
 dataloader_num_workers: 4
-tokenized_path: .llamafactory_cache/tokenized_dataset/BrickNet-Stage2-NonThinking-10k-qwen35-08b-nothink-len16384
+tokenized_path: .llamafactory_cache/tokenized_dataset/exp4_3-stage2-thinking-hard-10k-qwen35-08b-nothink-len16384
 image_max_pixels: 589824
 image_min_pixels: 1024
 video_max_pixels: 65536
 video_min_pixels: 256
 
 ### output
-output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_stage2_nonthinking_10k_ep3_bs1_ga16_lora64_len16384
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_3_qwen35_08b_mixedpt_stage2_thinking_hard_10k_ep3_bs1_ga16_lora64_len16384
 logging_steps: 10
 save_steps: 250
 plot_loss: true

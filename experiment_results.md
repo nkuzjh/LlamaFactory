@@ -29,10 +29,10 @@ size 2、gradient accumulation 8、learning rate `5e-5` 和 cosine scheduler。
 
 阶段 2 Thinking-Hard 是明确例外：用户于 2026-08-06 冻结 `qwen3_5_nothink`、`enable_thinking=false`、
 `cutoff_len=16384`、`packing=false`、`train_on_prompt=false`，推理 `max_new_tokens=16384`。显式 `<think>` 是 assistant
-监督文本，不叠加 Qwen 原生 thinking 模板。无思考对照统一命名为 `NonThinking`。该阶段尚未启动。
-训练/预测配置、安全 dry-run launcher、extractor 和 10k/50k/all nested manifest 已准备。overfit 协议为
-直接用官方 VAL 中 collision-free 的 511 条训练，并在原始完整 512 条上推理；两个 token gate 均已通过。
-当前只等待阶段 0 冻结公共初始化和用户 gate。完整准备状态见
+监督文本，不叠加 Qwen 原生 thinking 模板。无思考对照统一命名为 `NonThinking-Control`。该阶段尚未启动。
+`exp4`–`exp4_3` 的训练/预测配置、安全 dry-run launcher、extractor、VAL511/VAL512 数据和 paired 10k 已准备。
+overfit 协议为直接用官方 VAL 中 collision-free 的 511 条训练，并在原始完整 512 条上推理；两个 token gate
+均已通过。50k/all 准备暂停且不预占版本号。当前只等待阶段 0 冻结公共初始化和用户 gate。完整准备状态见
 [Stage 2 runbook](bricknet-stage2-thinking-hard.md)。
 
 | Exp | 框架 | Train output | 初始化 | 数据 | 样本数 | Epoch | 主要 ablation | Train loss | 状态 |
@@ -47,6 +47,10 @@ size 2、gradient accumulation 8、learning rate `5e-5` 和 cosine scheduler。
 | GRPO-exp0 | ms-swift | `../ms-swift/output/bricknet_grpo/exp0_qwen35_08b_exp3_rl_n2000_g8` | PT-exp0 merged + exp3 adapter | BrickNet-MM-RL | 2,000 | 1 | GRPO，五项结构/几何 reward，G=8 | - | 完成并评测 |
 | exp3_1 | LlamaFactory | `train_exp3_1_qwen35_08b_pt_sft5w_ep3_bs2_ga8_lora64` | PT-exp0 adapter | BrickNet-MM-SFT | 50,000 | 3 | PT + 50k SFT | 0.1673 | 完成并评测 |
 | exp3_2 | LlamaFactory | `train_exp3_2_qwen35_08b_pt_sft_ep3_bs2_ga8_lora64` | PT-exp0 adapter | BrickNet-MM-SFT | 334,355 | 3 | PT + 全量 SFT | - | 未开始 |
+| exp4 | LlamaFactory | `train_exp4_qwen35_08b_mixedpt_stage2_nonthinking_control_val511_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 NonThinking-Control VAL511 | 511 | 3 | 无思考 overfit 链路检查 | - | 准备完成；等待 Stage0，未训练 |
+| exp4_1 | LlamaFactory | `train_exp4_1_qwen35_08b_mixedpt_stage2_thinking_hard_val511_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 Thinking-Hard VAL511 | 511 | 3 | Thinking-Hard overfit 链路检查 | - | 准备完成；等待 Stage0，未训练 |
+| exp4_2 | LlamaFactory | `train_exp4_2_qwen35_08b_mixedpt_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 NonThinking-Control 10k | 10,000 | 3 | 无思考正式 paired 对照 | - | 准备完成；等待 Stage0 + overfit gate，未训练 |
+| exp4_3 | LlamaFactory | `train_exp4_3_qwen35_08b_mixedpt_stage2_thinking_hard_10k_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 Thinking-Hard 10k | 10,000 | 3 | Thinking-Hard 正式 paired 实验 | - | 准备完成；等待 Stage0 + overfit gate，未训练 |
 
 PT-exp0 虽然命名为 PT，但在 LlamaFactory 中使用 `stage=sft` 和 BrickNet-MM-PT，属于
 多模态监督预训练式训练，不等同于原始 BrickNet 使用固定 `"a"` prompt 的无条件

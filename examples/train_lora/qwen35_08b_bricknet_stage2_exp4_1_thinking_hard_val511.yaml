@@ -1,4 +1,4 @@
-### Stage-2 Thinking-Hard base config
+### exp4_1: Stage-2 Thinking-Hard VAL511 overfit
 # The explicit <think>/<action> trace is ordinary supervised assistant text.
 # Qwen native thinking remains disabled. Use the gated launcher for every run.
 
@@ -22,7 +22,7 @@ freeze_vision_tower: true
 freeze_multi_modal_projector: true
 
 ### dataset
-dataset: BrickNet-Stage2-ThinkingHard-10k
+dataset: BrickNet-Stage2-ThinkingHard-VAL511-Train
 dataset_dir: data
 media_dir: /home/jiahao/task/BrickNet
 template: qwen3_5_nothink
@@ -32,16 +32,16 @@ train_on_prompt: false
 packing: false
 preprocessing_num_workers: 16
 dataloader_num_workers: 4
-tokenized_path: .llamafactory_cache/tokenized_dataset/BrickNet-Stage2-ThinkingHard-10k-qwen35-08b-nothink-len16384
+tokenized_path: .llamafactory_cache/tokenized_dataset/exp4_1-stage2-thinking-hard-val511-qwen35-08b-nothink-len16384
 image_max_pixels: 589824
 image_min_pixels: 1024
 video_max_pixels: 65536
 video_min_pixels: 256
 
 ### output
-output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_stage2_thinking_hard_10k_ep3_bs1_ga16_lora64_len16384
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_1_qwen35_08b_mixedpt_stage2_thinking_hard_val511_ep3_bs1_ga16_lora64_len16384
 logging_steps: 10
-save_steps: 250
+save_steps: 32
 plot_loss: true
 report_to: none
 include_num_input_tokens_seen: true

@@ -1,73 +1,63 @@
 # BrickNet Stage 2 Thinking-Hard SFT Runbook
 
-状态：训练前数据、token gate、配置和安全启动器已准备；阶段 2 训练未启动。当前只等待阶段 0 gate
-通过和 mixed PT-exp1 final adapter 冻结。
+状态：`exp4`–`exp4_3` 的数据、配置、注册项、启动命令和 dry-run gate 已准备；阶段 2 训练及推理均未启动。
+当前训练入口的唯一外部等待项是阶段 0 gate 与 mixed PT-exp1 final adapter；预测还必须等待对应阶段 2 adapter。
 
 本阶段比较严格同 ID 的两组数据：
 
-- `nonthinking`：assistant 为原始 BrickNet path；
-- `thinking-hard`：assistant 为显式 `<think>/<action>` 完整 trace。
+- `nonthinking-control` / `NonThinking-Control`：assistant 为原始 BrickNet path；
+- `thinking-hard` / `Thinking-Hard`：assistant 为显式 `<think>/<action>` 完整 trace。
 
 两组都使用 `qwen3_5_nothink`、`enable_thinking=false`、`cutoff_len=16384`、
 `train_on_prompt=false`、`packing=false`。显式 `<think>` 是普通 assistant 监督文本，不启用 Qwen 原生 thinking。
 
-## 1. 已准备入口
+## 1. 实验版本与配置
 
-训练基础配置：
+阶段 2 沿用 LlamaFactory 既有主序列 `exp3_2` 之后的版本号：
 
-```text
-examples/train_lora/qwen35_08b_bricknet_stage2_nonthinking.yaml
-examples/train_lora/qwen35_08b_bricknet_stage2_thinking_hard.yaml
-```
+| Exp | 实验 | 训练配置 | 预测配置 |
+| --- | --- | --- | --- |
+| `exp4` | NonThinking-Control VAL511 overfit | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_nonthinking_control_val511.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_nonthinking_control_predict.yaml` |
+| `exp4_1` | Thinking-Hard VAL511 overfit | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_1_thinking_hard_val511.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_1_thinking_hard_predict.yaml` |
+| `exp4_2` | NonThinking-Control 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_predict.yaml` |
+| `exp4_3` | Thinking-Hard 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_thinking_hard_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_thinking_hard_predict.yaml` |
 
-预测基础配置：
-
-```text
-examples/train_lora/qwen35_08b_bricknet_stage2_nonthinking_predict.yaml
-examples/train_lora/qwen35_08b_bricknet_stage2_thinking_hard_predict.yaml
-```
-
-统一安全启动器：
-
-```text
-scripts/launch_bricknet_stage2_sft.py
-```
-
-启动器默认只执行 dry-run。实际执行必须同时传入：
+统一安全启动器为 `scripts/launch_bricknet_stage2_sft.py`。默认只执行 dry-run；实际执行必须同时传入：
 
 ```text
 --execute --stage0-gate-approved
 ```
 
-且必须通过 final Stage-0 adapter、Stage-1 token gate、VAL annotation/token gate、dataset、manifest 和输出目录检查。
+启动器只接受 `overfit511` 和 `10k`，并检查 final Stage-0 adapter、Stage-1 token gate、VAL
+annotation/token gate、dataset registry、数据与 manifest 行数、10k 物化报告/hash、对应 Stage-2 adapter 和输出目录。
+10k train 还要求在 paired VAL511 结果经审核后显式传入 `--overfit-gate-approved`，防止跳级。
 
-## 2. 数据准备
+50k/all 当前暂停：不分配实验版本号，不提供训练/预测配置、dataset registry 或 launcher scale；此前用于 all 的两个
+临时软链接已移除，Stage-1 的 66,456 条不可变源数据未删除。已有 50k/all nested manifest 仅作未来可复现依据；
+只有用户明确恢复该路线后才能继续准备。
 
-### 2.1 生成 nested manifests
+## 2. 数据准备与证据
 
-只生成 ID manifest，不提前物化 10k/50k 训练 JSONL：
+### 2.1 Nested manifest
 
-```bash
-cd /home/jiahao/task/BrickNet
-PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
-  data_preprocess/prepare_bricknet_stage2_sft.py manifests
-```
-
-选择规则固定为：
+确定性选择规则为：
 
 ```text
 ascending sha256("42\0" + sample_id), then sample_id
 ```
 
-因此 10k 是 50k 的严格前缀/子集，50k 是 all 的严格前缀/子集。manifest 保存 ID、selection rank、source line、
-reference hash 和必要分组字段。
+2026-08-06 已验证 66,456 条 paired 样本同 ID、同顺序、同 reference、同 image/user prompt，且
+`10k ⊂ 50k ⊂ all`。证据：
 
-2026-08-06 已完成该命令：66,456 条 paired 样本的同 ID、同顺序、同 reference、同 image/user prompt
-校验全部通过，且 `10k ⊂ 50k ⊂ all`。报告为
-`/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/stage2/reports/stage2_nested_manifests_report.json`；
-`datasets_materialized=false`。
+```text
+/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/stage2/reports/stage2_nested_manifests_report.json
+```
 
-### 2.2 构造 VAL511 overfit 训练数据和 VAL512 推理数据
+当前只消费 `stage2_train_10k_seed42.jsonl`；50k/all manifest 不会触发数据或实验准备。
+
+### 2.2 VAL511 训练与 VAL512 推理
+
+构造命令不运行训练：
 
 ```bash
 cd /home/jiahao/task/BrickNet
@@ -76,87 +66,50 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   data_preprocess/prepare_bricknet_stage2_sft.py build-val
 ```
 
-该命令复用官方 VAL 的原始 reference path，不运行训练。它同时生成：
+实际结果：`processed=512`、`eval_accepted=512`、`train_accepted=511`、`train_excluded=1`。
+唯一排除 ID `BrickNet-MM__VAL__row-000114__caption-000__pathline-000010079` 的 reference 在 action 46
+发生真实 mesh collision；它只不参加 overfit 训练，原 reference 未修改并保留在 512 条推理/评测集。
 
-- `VAL511-Train`：对 Thinking-Hard 执行真实 parse、inventory、collision 和 byte-exact extractor 检查；
-- `VAL512-Eval`：保留原始全部 512 条 prompt/reference，Thinking-Hard 数据只替换 system prompt，assistant label
-  仍是 pure reference path；预测 trace 由后续 strict extractor 抽取。
-
-2026-08-06 实际 gate：
-
-```text
-processed=512
-eval_accepted=512
-train_accepted=511
-train_excluded=1
-evaluation_gate_passed=true
-train_annotation_gate_passed=true
-```
-
-训练排除记录：
-
-```text
-source line: 115
-id: BrickNet-MM__VAL__row-000114__caption-000__pathline-000010079
-collision_indices: [46]
-disposition: excluded_from_VAL511_overfit_only; retained_in_VAL512_inference
-```
-
-该 reference 可解析，共 65 parts/129 lines，真实 mesh checker 在 action 46 返回碰撞。它没有被删除、替换或
-修改，只不参与 overfit 训练。如果以后出现第二条排除，或该 ID 的 collision indices 不再是 `[46]`，
-`build-val` 仍会失败。报告：
-
-```text
-/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/reports/BrickNet-Stage2-VAL511-Train-VAL512-Eval_report.json
-```
-
-随后执行真实多模态 token audit：
+两次真实多模态 token audit 的命令为：
 
 ```bash
 cd /home/jiahao/task/LlamaFactory
 conda run -n llamafactory --no-capture-output python \
   scripts/audit_bricknet_reasoning_tokens.py \
   --stage 2 --audit-purpose val511_overfit_train \
-  --dataset NonThinking=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-VAL511-Train.jsonl \
+  --dataset NonThinking-Control=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL511-Train.jsonl \
   --dataset Thinking-Hard=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-Thinking-Hard-VAL511-Train.jsonl \
   --bricknet-root /home/jiahao/task/BrickNet \
   --output-dir /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/reports/token_audit/train_val511 \
   --cutoff-len 16384 --workers 2 --chunksize 8
-```
 
-VAL512 推理数据审计：
-
-```bash
 conda run -n llamafactory --no-capture-output python \
   scripts/audit_bricknet_reasoning_tokens.py \
   --stage 2 --audit-purpose val512_inference_eval \
-  --dataset NonThinking=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-VAL512-Eval.jsonl \
+  --dataset NonThinking-Control=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
   --dataset Thinking-Hard=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-Thinking-Hard-VAL512-Eval.jsonl \
   --bricknet-root /home/jiahao/task/BrickNet \
   --output-dir /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/reports/token_audit/eval_val512 \
   --cutoff-len 16384 --workers 2 --chunksize 8
 ```
 
-两次审计已完成：
+当前结果：VAL511 两组各 511 条，VAL512 两组各 512 条；均为 paired ID/order 相同、0 error、0 truncation。
+统一报告已通过 `finalize-val` 合并，`readiness_gate_passed=true`、`training_eligible=true`、
+`prediction_eligible=true`：
 
-- VAL511 Train：NonThinking/Thinking-Hard 各 511 条，0 error、0 truncation，paired ID/order 相同；
-- VAL512 Eval：NonThinking/Thinking-Hard 各 512 条，0 error、0 truncation，paired ID/order 相同。
-
-两个 token audit 完成后，必须把外部 gate 合并回统一 VAL report：
-
-```bash
-cd /home/jiahao/task/BrickNet
-PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
-  data_preprocess/prepare_bricknet_stage2_sft.py finalize-val
+```text
+/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/reports/BrickNet-Stage2-VAL511-Train-VAL512-Eval_report.json
 ```
 
-该命令会复核两个 token report 的 stage/purpose、样本数、dataset SHA、paired ID/order、error 和
-truncation，然后写入 `readiness_gate_passed=true`、`training_eligible=true`、
-`prediction_eligible=true`。它不调用 trainer。
+短名 `NonThinking` 的上一版 VAL 产物保存在：
 
-### 2.3 在某个实验启动前物化 10k/50k
+```text
+/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/superseded/2026-08-06-nonthinking-short-name/
+```
 
-10k：
+### 2.3 10k 物化
+
+已执行且不运行训练：
 
 ```bash
 cd /home/jiahao/task/BrickNet
@@ -164,67 +117,71 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   data_preprocess/prepare_bricknet_stage2_sft.py materialize --scale 10k
 ```
 
-50k 只在 10k gate 通过后执行：
+两组各 10,000 条，使用同一 manifest，`paired_order_and_ids=true`、`training_eligible=true`。报告：
 
-```bash
-cd /home/jiahao/task/BrickNet
-PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
-  data_preprocess/prepare_bricknet_stage2_sft.py materialize --scale 50k
+```text
+/home/jiahao/task/LlamaFactory/data/bricknet_stage2/10k/materialization_report.json
 ```
 
-`all` 通过 `data/bricknet_stage2/all/BrickNet-Stage2-{NonThinking,ThinkingHard}.jsonl` 语义链接直接读取
-阶段 1 不可变的 66,456 条源文件，不复制 1.4 GB 数据；启动器仍对解引后内容做 Stage-1 token-report
-SHA-256 校验。
+NonThinking-Control SHA-256 为 `4be6a7fb711ba24a658fc3096a8f1e2a9aa3e630c76adb8f04313bf9bff02a15`；
+Thinking-Hard 为 `f1842b43772eeabedc2094a09da4a5814f84608eafd2956390d8b0121e16f100`；两者 ordered ID
+SHA-256 均为 `2d87ff4c3b918f748dde48721cbec66595ccc17317cf728f77e30efc04230dea`。
 
-## 3. Dry-run 和正式训练命令
+## 3. Dry-run 与正式训练命令
 
-### 3.1 511 VAL overfit smoke
-
-先检查 NonThinking：
+以下命令当前只做检查，不会训练：
 
 ```bash
 cd /home/jiahao/task/LlamaFactory
+
+# exp4: NonThinking-Control VAL511 overfit
 python scripts/launch_bricknet_stage2_sft.py \
-  --action train --variant nonthinking --scale overfit511
-```
+  --action train --variant nonthinking-control --scale overfit511
 
-再检查 Thinking-Hard：
-
-```bash
+# exp4_1: Thinking-Hard VAL511 overfit
 python scripts/launch_bricknet_stage2_sft.py \
   --action train --variant thinking-hard --scale overfit511
+
+# exp4_2: NonThinking-Control 10k
+python scripts/launch_bricknet_stage2_sft.py \
+  --action train --variant nonthinking-control --scale 10k
+
+# exp4_3: Thinking-Hard 10k
+python scripts/launch_bricknet_stage2_sft.py \
+  --action train --variant thinking-hard --scale 10k
 ```
 
-阶段 0 gate 通过、dry-run `ready=true` 且用户确认后，才可在相同命令末尾增加：
+阶段 0 完成、dry-run 仅剩的 `WAIT_STAGE0_FINAL` 消失且用户确认后，才可在对应命令末尾增加：
 
 ```text
 --execute --stage0-gate-approved
 ```
 
-### 3.2 10k paired 主实验
+上式只适用于两个 overfit 实验。10k 当前 dry-run 还会返回 `WAIT_STAGE2_OVERFIT_GATE`；两组 overfit 完成并
+经用户审核后，10k 正式执行必须同时增加：
 
-先物化 10k，然后分别 dry-run：
-
-```bash
-python scripts/launch_bricknet_stage2_sft.py \
-  --action train --variant nonthinking --scale 10k
-
-python scripts/launch_bricknet_stage2_sft.py \
-  --action train --variant thinking-hard --scale 10k
+```text
+--overfit-gate-approved --execute --stage0-gate-approved
 ```
 
-50k/all 只需要把 `--scale` 改为 `50k` 或 `all`；必须遵守 `10k → 50k → all` gate，不允许跳级扩容。
+不得把 `--scale` 改成 50k/all；启动器不会接受这两个暂停规模。
 
 ## 4. 预测与 path extractor
 
-训练完成后先 dry-run 预测：
+每个 checkpoint 都对完整 512 条 VAL 推理。对应 dry-run 命令为：
 
 ```bash
+python scripts/launch_bricknet_stage2_sft.py \
+  --action predict --variant nonthinking-control --scale overfit511
+python scripts/launch_bricknet_stage2_sft.py \
+  --action predict --variant thinking-hard --scale overfit511
+python scripts/launch_bricknet_stage2_sft.py \
+  --action predict --variant nonthinking-control --scale 10k
 python scripts/launch_bricknet_stage2_sft.py \
   --action predict --variant thinking-hard --scale 10k
 ```
 
-实际生成完成后，Thinking trace 必须先提取为 BrickNet path：
+预测 dry-run 在训练前会额外返回 `WAIT_STAGE2_TRAIN`。Thinking-Hard 生成完成后，使用 strict extractor：
 
 ```bash
 cd /home/jiahao/task/BrickNet
@@ -232,23 +189,28 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   scripts/extract_reasoning_predictions.py \
   --variant thinking-hard \
   --label-format path \
-  --input /home/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_stage2_thinking_hard_10k_in16384_out16384_p95_t1_k20/generated_predictions.jsonl \
-  --output outputs_val/qwen35_08b/stage2_thinking_hard_10k/path_predictions.jsonl \
-  --report outputs_val/qwen35_08b/stage2_thinking_hard_10k/trace_extraction_report.json
+  --input /home/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/generated_predictions.jsonl \
+  --output outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512/path_predictions.jsonl \
+  --report outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512/trace_extraction_report.json
 ```
 
-之后把 `path_predictions.jsonl` 交给现有 `scripts/evaluate_experiment.py` 和 ms-swift alignment worker。
-LlamaFactory 对原始 trace 文本计算的 BLEU/ROUGE 不是阶段 2 的最终结构指标；最终报告必须包含 trace-format、extractor、
+LlamaFactory 对 trace 文本计算的 BLEU/ROUGE 不是最终结构指标；最终报告必须包含 trace-format、extractor、
 parse、inventory、collision、pose、语义指标、token、延迟和 GPU time。
 
-## 5. 当前明确等待项
+## 5. 准备完成口径与等待项
 
-1. **等待阶段 0：** mixed PT-exp1 仍在运行；其输出根目录尚无 final `adapter_config.json` 和
-   `adapter_model.safetensors`，安全启动器会返回 `WAIT_STAGE0_FINAL`。
-2. **等待用户 gate：** 即使 final adapter 已存在，实际启动仍要求用户确认阶段 0 gate，并显式传入
-   `--stage0-gate-approved`。
-3. **等待真实显存 smoke：** 16,384 token 将 micro-batch 降为 1、gradient accumulation 提至 16；实际吞吐、峰值显存和
-   是否需要进一步调整只能在阶段 0 完成后的 511 smoke 中确定。NonThinking/Thinking-Hard 必须保持相同有效 batch。
-4. **等待逐级扩容：** 50k 只在 10k paired gate 通过后物化；all 只在 50k gate 通过后启动。
+四个实验的本地准备已完成：配置与 registry 存在、VAL/10k 数据和 manifest 行数正确、10k hash 与物化报告一致、
+VAL 和全量 Stage-1 token gate 通过、八个 train/predict dry-run 均只出现预期等待项，且所有输出目录均不存在。
+
+这不等于可立即训练：
+
+1. mixed PT-exp1 输出根目录尚无 final `adapter_config.json` 和 adapter 权重，训练 dry-run 返回
+   `WAIT_STAGE0_FINAL`；
+2. 即使 final adapter 存在，仍须用户确认阶段 0 gate 并显式传入 `--stage0-gate-approved --execute`；
+3. 10k train 还必须等待 paired VAL511 审核并显式传入 `--overfit-gate-approved`；当前返回
+   `WAIT_STAGE2_OVERFIT_GATE`；
+4. 16,384 token 的真实吞吐与峰值显存只能在获准后的 511 overfit 中确认；两组必须保持相同有效 batch；
+5. 预测必须等待对应 Stage-2 adapter，因此当前额外返回 `WAIT_STAGE2_TRAIN`；
+6. 50k/all 准备暂停，当前不属于可执行实验范围。
 
 准备代码和 dry-run 不代表阶段 2 已开始；只有安全启动器实际调用 LlamaFactory trainer 才算进入训练。

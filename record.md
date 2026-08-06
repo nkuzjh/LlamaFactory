@@ -164,3 +164,73 @@ Strict Success `20/512 (3.91%)`。完整结果见
 1. llamafactory-cli train --stage sft --do_train True --model_name_or_path Qwen/Qwen3.5-0.8B --preprocessing_num_workers 16 --finetuning_type lora --template qwen3_5_nothink --flash_attn auto --dataset_dir data --dataset BrickNet-MM-SFT --cutoff_len 4096 --learning_rate 5e-05 --num_train_epochs 3.0 --max_samples 1000000 --per_device_train_batch_size 2 --gradient_accumulation_steps 8 --lr_scheduler_type cosine --max_grad_norm 1.0 --logging_steps 10 --save_steps 2000 --warmup_steps 0 --packing False --enable_thinking False --report_to none --output_dir saves/Qwen3.5-0.8B-Thinking/lora/train_exp3_2_qwen35_08b_pt_sft_ep3_bs2_ga8_lora64 --bf16 True --plot_loss True --trust_remote_code True --ddp_timeout 180000000 --include_num_input_tokens_seen True --optim adamw_torch --lora_rank 64 --lora_alpha 128 --lora_dropout 0 --lora_target all --freeze_vision_tower True --freeze_multi_modal_projector True --image_max_pixels 589824 --image_min_pixels 1024 --video_max_pixels 65536 --video_min_pixels 256 --tokenized_path .llamafactory_cache/tokenized_dataset/BrickNet-MM-SFT_qwen35-08b_nothink_len4096_img589824 --adapter_name_or_path saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp0_qwen35_08b_ep3_bs2_ga8_lora64 --create_new_adapter
 
 **eval**
+
+## Stage 2 exp4–exp4_3（准备完成，未训练）
+
+四个实验均以 mixed PT-exp1 final 为共同初始化。当前命令默认 dry-run；阶段 0 gate 冻结并经用户确认后，
+两个 overfit 才可添加 `--execute --stage0-gate-approved`。10k 还必须等待 paired overfit 审核，并添加
+`--overfit-gate-approved`。50k/all 准备暂停且不分配版本号。
+
+### exp4 — NonThinking-Control VAL511 overfit
+
+**train dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant nonthinking-control --scale overfit511`
+
+**predict VAL512 dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant nonthinking-control --scale overfit511`
+
+### exp4_1 — Thinking-Hard VAL511 overfit
+
+**train dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant thinking-hard --scale overfit511`
+
+**predict VAL512 dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant thinking-hard --scale overfit511`
+
+### exp4_2 — NonThinking-Control 10k
+
+**train dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant nonthinking-control --scale 10k`
+
+**predict VAL512 dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant nonthinking-control --scale 10k`
+
+### exp4_3 — Thinking-Hard 10k
+
+**train dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant thinking-hard --scale 10k`
+
+**predict VAL512 dry-run**
+
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant thinking-hard --scale 10k`
+
+## Stage 3 exp5（dormant preparation，未训练）
+
+### exp5 — Thinking-Semantic 10k
+
+配置：
+
+- train：`examples/train_lora/qwen35_08b_bricknet_stage3_exp5_thinking_semantic_10k.yaml`
+- predict：`examples/train_lora/qwen35_08b_bricknet_stage3_exp5_thinking_semantic_predict.yaml`
+- gate launcher：`scripts/launch_bricknet_stage3_sft.py`
+
+exp5 与 exp4_3 使用同一 mixed PT-exp1 final 初始化、相同 10k ID、LoRA/optimizer/epoch/effective batch、
+vision/projector freeze、`qwen3_5_nothink` 和 16,384 token 协议。唯一数据变量是 T2 trace 在 T1 硬事实中增加
+经审计的 `cue/semantic_role`。
+
+当前只准备配置，没有激活 `BrickNet-Stage3-Thinking-Semantic-10k` dataset registry。train dry-run：
+
+```bash
+python scripts/launch_bricknet_stage3_sft.py --action train
+```
+
+正式执行必须同时通过 Stage 0 final、Stage 3 Pilot 人工 approval、exp4_3/T1-10k gate、T2-10k 完整 hard replay、
+真实 Qwen processor paired token audit、10k dataset/registry hash 和输出目录 gate。预测还需要 exp5 adapter。
+当前 dry-run 会逐项返回这些等待项，`training_started=false`；未调用 trainer。50k/all 不分配版本号或配置。

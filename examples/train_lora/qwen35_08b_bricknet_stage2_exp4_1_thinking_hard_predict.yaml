@@ -1,9 +1,9 @@
-### Stage-2 NonThinking VAL512 prediction base config
-# The launcher overrides adapter/output paths for the requested scale.
+### exp4_1: Stage-2 Thinking-Hard VAL512 prediction
+# The corresponding adapter was trained on VAL511.
 
 ### model
 model_name_or_path: Qwen/Qwen3.5-0.8B
-adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp1_qwen35_08b_bricknet_text270k_mmpt135k_ep1_bs2_ga8_lora64,saves/Qwen3.5-0.8B-Thinking/lora/train_stage2_nonthinking_10k_ep3_bs1_ga16_lora64_len16384
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp1_qwen35_08b_bricknet_text270k_mmpt135k_ep1_bs2_ga8_lora64,saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_1_qwen35_08b_mixedpt_stage2_thinking_hard_val511_ep3_bs1_ga16_lora64_len16384
 trust_remote_code: true
 flash_attn: auto
 
@@ -14,7 +14,7 @@ predict_with_generate: true
 finetuning_type: lora
 
 ### dataset
-eval_dataset: BrickNet-Stage2-NonThinking-VAL512-Eval
+eval_dataset: BrickNet-Stage2-ThinkingHard-VAL512-Eval
 dataset_dir: data
 media_dir: /home/jiahao/task/BrickNet
 template: qwen3_5_nothink
@@ -27,7 +27,7 @@ video_max_pixels: 65536
 video_min_pixels: 256
 
 ### output
-output_dir: saves/Qwen3.5-0.8B-Thinking/lora/eval_stage2_nonthinking_10k_in16384_out16384_p95_t1_k20
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_1_stage2_thinking_hard_val512_in16384_out16384_p95_t1_k20
 report_to: none
 
 ### eval
