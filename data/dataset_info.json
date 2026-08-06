@@ -1,4 +1,168 @@
 {
+  "BrickNet-Stage2-NonThinking-VAL511-Train": {
+    "file_name": "/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-VAL511-Train.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-ThinkingHard-VAL511-Train": {
+    "file_name": "/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-Thinking-Hard-VAL511-Train.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-NonThinking-VAL512-Eval": {
+    "file_name": "/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-VAL512-Eval.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-ThinkingHard-VAL512-Eval": {
+    "file_name": "/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-Thinking-Hard-VAL512-Eval.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-NonThinking-10k": {
+    "file_name": "/home/jiahao/task/LlamaFactory/data/bricknet_stage2/10k/BrickNet-Stage2-NonThinking.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-ThinkingHard-10k": {
+    "file_name": "/home/jiahao/task/LlamaFactory/data/bricknet_stage2/10k/BrickNet-Stage2-ThinkingHard.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-NonThinking-50k": {
+    "file_name": "/home/jiahao/task/LlamaFactory/data/bricknet_stage2/50k/BrickNet-Stage2-NonThinking.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-ThinkingHard-50k": {
+    "file_name": "/home/jiahao/task/LlamaFactory/data/bricknet_stage2/50k/BrickNet-Stage2-ThinkingHard.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-NonThinking-All": {
+    "file_name": "/home/jiahao/task/LlamaFactory/data/bricknet_stage2/all/BrickNet-Stage2-NonThinking.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-ThinkingHard-All": {
+    "file_name": "/home/jiahao/task/LlamaFactory/data/bricknet_stage2/all/BrickNet-Stage2-ThinkingHard.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-PT-Text-270k": {
+    "file_name": "BrickNet-PT_text_270102_seed42.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+        "messages": "messages"
+    },
+    "tags": {
+        "role_tag": "role",
+        "content_tag": "content",
+        "user_tag": "user",
+        "assistant_tag": "assistant",
+        "system_tag": "system"
+    }
+  },
   "BrickNet-MM-PT": {
     "file_name": "BrickNet-MM_PT.json",
     "formatting": "sharegpt",
@@ -31,6 +195,21 @@
   },
   "BrickNet-MM-VAL": {
     "file_name": "BrickNet-MM_VAL.json",
+    "formatting": "sharegpt",
+    "columns": {
+        "messages": "messages",
+        "images": "images"
+    },
+    "tags": {
+        "role_tag": "role",
+        "content_tag": "content",
+        "user_tag": "user",
+        "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-MM-PT-VAL": {
+    "file_name": "BrickNet-MM_PT_VAL.json",
     "formatting": "sharegpt",
     "columns": {
         "messages": "messages",

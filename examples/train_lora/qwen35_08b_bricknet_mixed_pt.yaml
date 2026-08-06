@@ -1,0 +1,58 @@
+### model
+model_name_or_path: Qwen/Qwen3.5-0.8B
+trust_remote_code: true
+flash_attn: auto
+
+### method
+# Mixed text-only and multimodal records require the supervised processor.
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_target: all
+lora_rank: 64
+lora_alpha: 128
+lora_dropout: 0.0
+freeze_vision_tower: true
+freeze_multi_modal_projector: true
+
+### dataset
+# Put multimodal rows first so Arrow infers media columns as list<string>;
+# the following text-only rows can then be represented as null media values.
+# 135,051 graph-balanced multimodal paths + 270,102 text-only paths = 405,153.
+dataset: BrickNet-MM-PT,BrickNet-PT-Text-270k
+dataset_dir: data
+media_dir: data
+template: qwen3_5_nothink
+enable_thinking: false
+cutoff_len: 4096
+train_on_prompt: false
+packing: false
+mix_strategy: concat
+preprocessing_num_workers: 16
+dataloader_num_workers: 4
+tokenized_path: .llamafactory_cache/tokenized_dataset/BrickNet-PT-text270102-MMPT135051-qwen35-08b-nothink-len4096
+image_max_pixels: 589824
+image_min_pixels: 1024
+video_max_pixels: 65536
+video_min_pixels: 256
+
+### output
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp1_qwen35_08b_bricknet_text270k_mmpt135k_ep1_bs2_ga8_lora64
+logging_steps: 10
+save_steps: 1000
+plot_loss: true
+report_to: none
+include_num_input_tokens_seen: true
+
+### train
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 8
+learning_rate: 5.0e-5
+num_train_epochs: 1.0
+lr_scheduler_type: cosine
+warmup_steps: 0
+max_grad_norm: 1.0
+optim: adamw_torch
+bf16: true
+ddp_timeout: 180000000
+seed: 42

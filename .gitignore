@@ -183,3 +183,5 @@ generated_predictions.jsonl
 predictions_score.json
 data/images
 .llamafactory_cache
+data/BrickNet-PT_text_*.jsonl
+data/BrickNet-PT_text_*.jsonl.report.json
