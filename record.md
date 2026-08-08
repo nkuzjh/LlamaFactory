@@ -28,8 +28,8 @@
 # PT experiments
 ## exp0
 ### Qwen3.5-0.8B
+**train**
 --output_dir saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp0_qwen35_08b_ep3_bs2_ga8_lora64
-
 **eval**
 1. `llamafactory-cli train examples/train_lora/qwen35_08b_bricknet_mm_pt_predict.yaml`
 2. `cd ../BrickNet && /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/evaluate_experiment.py --predictions ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_PT_exp0_ptval_in4096_out4096_p95_t1_k20/generated_predictions.jsonl --text-metrics ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_PT_exp0_ptval_in4096_out4096_p95_t1_k20/predict_results.json --output-dir outputs_val/qwen35_08b/eval_PT_exp0_ptval_in4096_out4096_p95_t1_k20 --prompts-file data/bricknet_datasets/captions_val.jsonl`
@@ -44,7 +44,33 @@ Strict Success `14/512 (2.73%)`。完整结果见
 
 ## exp1
 ### Qwen3.5-0.8B
+**train**
   llamafactory-cli train examples/train_lora/qwen35_08b_bricknet_mixed_pt.yaml
+**eval**
+1) LlamaFactory 生成预测
+llamafactory-cli train examples/train_lora/qwen35_08b_bricknet_mm_pt_exp1_predict.yaml
+2) BrickNet 文本+渲染评测
+cd ../BrickNet && /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/evaluate_experiment.py \
+  --predictions ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/generated_predictions.jsonl \
+  --text-metrics ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/predict_results.json \
+  --output-dir outputs_val/qwen35_08b/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20 \
+  --prompts-file data/bricknet_datasets/captions_val.jsonl
+3) 生成 alignment 输入
+cd ../LlamaFactory && jq -c '{response: .predict, label: .label}' \
+  saves/Qwen3.5-0.8B-Thinking/lora/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/generated_predictions.jsonl \
+  > ../BrickNet/outputs_val/qwen35_08b/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/alignment_input.jsonl
+4) ms-swift 对齐评测
+cd ../ms-swift && /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  examples/train/grpo/plugin/bricknet/evaluate_experiment.py alignment-worker \
+  --results ../BrickNet/outputs_val/qwen35_08b/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/alignment_input.jsonl \
+  --dataset ../BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_VAL.jsonl \
+  --scored ../BrickNet/outputs_val/qwen35_08b/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/scored.jsonl \
+  --metrics-json ../BrickNet/outputs_val/qwen35_08b/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/metrics.json \
+  --metrics-md ../BrickNet/outputs_val/qwen35_08b/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/metrics.md \
+  --output ../BrickNet/outputs_val/qwen35_08b/eval_PT_exp1_ptval_in4096_out4096_p95_t1_k20/alignment.jsonl \
+  --bricknet-root ../BrickNet
+
+
 
 # SFT experiments
 ## exp0
@@ -165,56 +191,54 @@ Strict Success `20/512 (3.91%)`。完整结果见
 
 **eval**
 
-## Stage 2 exp4–exp4_3（准备完成，未训练）
 
-四个实验均以 mixed PT-exp1 final 为共同初始化。当前命令默认 dry-run；阶段 0 gate 冻结并经用户确认后，
-两个 overfit 才可添加 `--execute --stage0-gate-approved`。10k 还必须等待 paired overfit 审核，并添加
-`--overfit-gate-approved`。50k/all 准备暂停且不分配版本号。
+
+## Stage 2 exp4–exp4_3（准备完成，未训练）
+四个实验均以 mixed PT-exp1 final 为共同初始化。
+当前命令默认 dry-run；阶段 0 gate 冻结并经用户确认后，两个 overfit 才可添加 `--execute --stage0-gate-approved` 正式开始训练。
+10k 还必须等待 paired overfit 审核，并添加 `--overfit-gate-approved` 正式开始训练。
+50k/all 准备暂停且不分配版本号。
+
 
 ### exp4 — NonThinking-Control VAL511 overfit
+**train**
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant nonthinking-control --scale overfit511 --execute --stage0-gate-approved`
+**predict VAL512**
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant nonthinking-control --scale overfit511 --execute --stage0-gate-approved`
 
-**train dry-run**
-
-1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant nonthinking-control --scale overfit511`
-
-**predict VAL512 dry-run**
-
-1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant nonthinking-control --scale overfit511`
 
 ### exp4_1 — Thinking-Hard VAL511 overfit
+**train**
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant thinking-hard --scale overfit511 --execute --stage0-gate-approved`
+**predict VAL512**
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant thinking-hard --scale overfit511 --execute --stage0-gate-approved`
 
-**train dry-run**
-
-1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant thinking-hard --scale overfit511`
-
-**predict VAL512 dry-run**
-
-1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant thinking-hard --scale overfit511`
 
 ### exp4_2 — NonThinking-Control 10k
+**train**
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant nonthinking-control --scale 10k --execute --stage0-gate-approved --overfit-gate-approved`
+**predict VAL512**
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant nonthinking-control --scale 10k --execute --stage0-gate-approved --overfit-gate-approved`
+**eval**
+2. `cd ../BrickNet && /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/evaluate_experiment.py --predictions ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/generated_predictions.jsonl --text-metrics ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/predict_results.json --output-dir outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20 --prompts-file data/bricknet_datasets/captions_val.jsonl --render-jobs 8 --eval-workers 8 --eval-batch-size 8`
+3. `jq -c '{response: .predict, label: .label}' saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/generated_predictions.jsonl > ../BrickNet/outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/alignment_input.jsonl`
+4. `cd ../ms-swift && /home/jiahao/miniconda3/envs/bricknet/bin/python examples/train/grpo/plugin/bricknet/evaluate_experiment.py alignment-worker --results ../BrickNet/outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/alignment_input.jsonl --dataset ../BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_VAL.jsonl --scored ../BrickNet/outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/scored.jsonl --metrics-json ../BrickNet/outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/metrics.json --metrics-md ../BrickNet/outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/metrics.md --output ../BrickNet/outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/alignment.jsonl --bricknet-root ../BrickNet`
 
-**train dry-run**
-
-1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant nonthinking-control --scale 10k`
-
-**predict VAL512 dry-run**
-
-1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant nonthinking-control --scale 10k`
 
 ### exp4_3 — Thinking-Hard 10k
+**train**
+1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant thinking-hard --scale 10k  --execute --stage0-gate-approved --overfit-gate-approved`
+**predict VAL512**
+1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant thinking-hard --scale 10k --execute --stage0-gate-approved --overfit-gate-approved`
+**eval**
+2. `cd ../BrickNet && /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/evaluate_experiment.py --predictions ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/generated_predictions.jsonl --text-metrics ../LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/predict_results.json --output-dir outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20 --prompts-file data/bricknet_datasets/captions_val.jsonl --render-jobs 8 --eval-workers 8 --eval-batch-size 8`
+3. `jq -c '{response: .predict, label: .label}' saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/generated_predictions.jsonl > ../BrickNet/outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/alignment_input.jsonl`
+4. `cd ../ms-swift && /home/jiahao/miniconda3/envs/bricknet/bin/python examples/train/grpo/plugin/bricknet/evaluate_experiment.py alignment-worker --results ../BrickNet/outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/alignment_input.jsonl --dataset ../BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_VAL.jsonl --scored ../BrickNet/outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/scored.jsonl --metrics-json ../BrickNet/outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/metrics.json --metrics-md ../BrickNet/outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/metrics.md --output ../BrickNet/outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/alignment.jsonl --bricknet-root ../BrickNet`
 
-**train dry-run**
 
-1. `python scripts/launch_bricknet_stage2_sft.py --action train --variant thinking-hard --scale 10k`
-
-**predict VAL512 dry-run**
-
-1. `python scripts/launch_bricknet_stage2_sft.py --action predict --variant thinking-hard --scale 10k`
 
 ## Stage 3 exp5（dormant preparation，未训练）
-
 ### exp5 — Thinking-Semantic 10k
-
 配置：
 
 - train：`examples/train_lora/qwen35_08b_bricknet_stage3_exp5_thinking_semantic_10k.yaml`
