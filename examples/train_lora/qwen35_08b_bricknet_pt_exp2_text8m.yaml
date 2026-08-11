@@ -1,0 +1,66 @@
+### PT-exp2-text8m: approved first-round exact-dedup path-only continued pretraining
+# Use scripts/launch_bricknet_pt_exp2.py; direct execution bypasses project gates.
+
+### model
+model_name_or_path: Qwen/Qwen3.5-0.8B
+trust_remote_code: true
+flash_attn: auto
+
+### method
+stage: pt
+do_train: true
+finetuning_type: lora
+lora_target: q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj
+lora_rank: 64
+lora_alpha: 128
+lora_dropout: 0.0
+freeze_vision_tower: true
+freeze_multi_modal_projector: true
+
+### dataset
+dataset: BrickNet-PT-exp2-text8m
+eval_dataset: BrickNet-PT-exp2-text-val1000
+dataset_dir: data
+template: qwen3_5_nothink
+cutoff_len: 6401
+packing: false
+preprocessing_num_workers: 16
+dataloader_num_workers: 4
+tokenized_path: .llamafactory_cache/tokenized_dataset/PT-exp2-text7698261-qwen35-08b-len6401-nopack
+
+### output
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_ga8_lora64_len6401_nopack
+logging_steps: 100
+save_strategy: steps
+save_steps: 5000
+save_total_limit: 3
+save_only_model: false
+plot_loss: true
+report_to: none
+include_num_input_tokens_seen: true
+
+### train
+per_device_train_batch_size: 4
+per_device_eval_batch_size: 4
+gradient_accumulation_steps: 8
+learning_rate: 5.0e-5
+max_steps: 250000
+lr_scheduler_type: cosine_with_min_lr
+lr_scheduler_kwargs:
+  min_lr_rate: 0.01
+warmup_steps: 12500
+max_grad_norm: 1.0
+optim: adamw_torch
+adam_beta1: 0.9
+adam_beta2: 0.998
+adam_epsilon: 1.0e-5
+weight_decay: 0.033
+train_sampling_strategy: group_by_length
+bf16: true
+ddp_timeout: 180000000
+seed: 42
+
+### eval
+do_eval: true
+eval_strategy: steps
+eval_steps: 2500

@@ -89,6 +89,93 @@
       "system_tag": "system"
     }
   },
+  "BrickNet-Stage2-NonThinking-Control-50k": {
+    "file_name": "/home/jiahao/task/LlamaFactory/data/bricknet_stage2/50k/BrickNet-Stage2-NonThinking-Control.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-Stage2-NonThinking-Control-All": {
+    "file_name": "/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/datasets/BrickNet-MM-NonThinking-Control.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-PT-exp2-text8m": {
+    "file_name": "bricknet_pt_exp2/text8m_train",
+    "columns": {
+      "prompt": "text"
+    }
+  },
+  "BrickNet-PT-exp2-text-val1000": {
+    "file_name": "bricknet_pt_exp2/val/PT-exp2-text-val1000.jsonl",
+    "columns": {
+      "prompt": "text"
+    }
+  },
+  "BrickNet-PT-exp2-mm-e1": {
+    "file_name": "bricknet_pt_exp2/mm/PT-exp2-mm-e1.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-PT-exp2-mm-e2": {
+    "file_name": "bricknet_pt_exp2/mm/PT-exp2-mm-e2.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
+  "BrickNet-PT-exp2-mm-e3": {
+    "file_name": "bricknet_pt_exp2/mm/PT-exp2-mm-e3.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "messages",
+      "images": "images"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant",
+      "system_tag": "system"
+    }
+  },
   "BrickNet-PT-Text-270k": {
     "file_name": "BrickNet-PT_text_270102_seed42.jsonl",
     "formatting": "sharegpt",

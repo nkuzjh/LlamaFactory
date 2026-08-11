@@ -62,8 +62,8 @@ set -euo pipefail
 export MIG_OLD_HOME=/home/jiahao
 export MIG_OLD_TASK_ROOT="${MIG_OLD_HOME}/task"
 
-export MIG_NEW_HOST="new_user@new_server"
-export MIG_NEW_HOME="/home/new_user"
+export MIG_NEW_HOST="jiahao@10.119.146.65"
+export MIG_NEW_HOME="/data/jiahao"
 export MIG_NEW_TASK_ROOT="${MIG_NEW_HOME}/task"
 
 export MIG_META_DIR="${MIG_OLD_TASK_ROOT}/migration_meta"
@@ -79,7 +79,7 @@ test -d /data/home/jiahao/data/bricknet_datasets/ldraw
 test -d "${MIG_OLD_HOME}/.local/share/bricknet/inset"
 ```
 
-## 2. 保存环境和 Git 清单
+## 2. 保存环境和 Git 清单 (根据实际情况自行使用conda和git迁移)
 
 这些清单只用于重建与核对，不替代 worktree 复制。
 
@@ -126,7 +126,7 @@ done
 | `llamafactory` | 3.13.14 | 2.12.1 | 5.8.0 | 0.18.1 | 0.24.0 | LlamaFactory 0.9.6.dev0 |
 | `swift` | 3.12.13 | 2.11.0 | 5.12.1 | 0.19.1 | 0.29.1 | vLLM 0.26.0、FLA 0.5.2 |
 
-## 3. 在新服务器创建目标目录
+### 2.1. 在新服务器创建目标目录
 
 仍在旧服务器执行：
 
@@ -142,7 +142,7 @@ mkdir -p \
 "
 ```
 
-## 4. 迁移三个项目的代码
+### 2.2. 迁移三个项目的代码
 
 这里保留 `.git`、本地修改和未跟踪代码，只排除数据、模型、cache 和生成输出。不要为这些
 命令增加 `-L/--copy-links`，否则会沿绝对软链接复制整个 `/data`。
@@ -190,9 +190,9 @@ rsync -aH --partial --info=progress2 \
   "${MIG_NEW_HOST}:${MIG_NEW_TASK_ROOT}/migration_meta/"
 ```
 
-## 5. 迁移最终数据、必要资产和最小权重
+## 3. 迁移最终数据、必要资产和最小权重
 
-### 5.1 最终数据集
+### 3.1 最终数据集
 
 先创建只包含最终数据的目录：
 
@@ -243,7 +243,7 @@ rsync -a --partial --info=progress2 \
 | `images/SFT` | 67,178 images |
 | `images/VAL` | 512 images |
 
-### 5.2 从 `/data` 挂载中只迁移必要文件
+### 3.2 从 `/data` 挂载中只迁移必要文件
 
 不迁移完整的 182 GiB `bricknet_datasets`。评测只额外需要 108 KiB captions 和约
 0.49 GiB LDraw library：
@@ -258,7 +258,7 @@ rsync -a --partial --info=progress2 \
   "${MIG_NEW_HOST}:${MIG_NEW_TASK_ROOT}/BrickNet/data/bricknet_datasets/"
 ```
 
-### 5.3 碰撞检测 meshes
+### 3.3 碰撞检测 meshes
 
 ```bash
 rsync -aH --partial --info=progress2 \
@@ -268,7 +268,7 @@ rsync -aH --partial --info=progress2 \
 
 目标目录应包含 21,084 个 `.ply` 文件。GRPO 正式训练不能省略该目录。
 
-### 5.4 主实验最小 adapter
+### 3.4 主实验最小 adapter (根据实际情况使用rsync自行迁移)
 
 只迁移每个 PEFT adapter 的 `adapter_config.json` 和 `adapter_model.safetensors`。
 
@@ -309,7 +309,7 @@ rsync -a --info=progress2 \
 不迁移 GRPO `optimizer.pt`、`scheduler.pt` 和 `rng_state.pth`，因为 exp0 已完成，后续实验
 应从 adapter 权重新建实验，而不是继续沿用 exp0 的 optimizer state。
 
-### 5.5 可选：保留其他 ablation 或恢复未完成训练
+### 3.5 可选：保留其他 ablation 或恢复未完成训练
 
 以下内容不属于主链路最小集合：
 
@@ -362,7 +362,7 @@ done
 完整 checkpoint 包含 adapter、optimizer、scheduler、RNG 和 trainer state，可在新服务器
 重建 tokenized cache 后用 LlamaFactory 的 `resume_from_checkpoint` 继续训练。
 
-## 6. 新服务器：检查硬件和安装 Miniconda
+## 4. 新服务器：检查硬件和安装 Miniconda
 
 以下命令开始在新服务器执行：
 
@@ -398,9 +398,9 @@ sudo apt-get update
 sudo apt-get install -y git git-lfs rsync curl ripgrep
 ```
 
-## 7. 新服务器：恢复软链接并修改绝对路径
+## 5. 新服务器：恢复软链接并修改绝对路径
 
-### 7.1 数据软链接
+### 5.1 数据软链接
 
 ```bash
 replace_migration_link() {
@@ -441,7 +441,7 @@ test "$(readlink "${MIG_NEW_TASK_ROOT}/ms-swift/experiment_results.md")" \
 test -f "${MIG_NEW_TASK_ROOT}/ms-swift/experiment_results.md"
 ```
 
-### 7.2 处理代码中的旧服务器绝对路径
+### 5.2 处理代码中的旧服务器绝对路径
 
 推荐保持 `$HOME/task` 布局。若新用户名不是 `jiahao`，执行：
 
@@ -465,7 +465,7 @@ grep -RIn '/home/jiahao' \
   || true
 ```
 
-## 8. 新服务器：重建三个 Conda 环境
+## 6. 新服务器：重建三个 Conda 环境
 
 优先使用从旧服务器导出的精确环境：
 
@@ -541,7 +541,7 @@ conda run -n swift python -c \
   "import swift, vllm, meshlib, torch; print(torch.__version__, vllm.__version__)"
 ```
 
-## 9. 新服务器：安装 LDView
+## 7. 新服务器：安装 LDView
 
 完整图文评测需要 LDView；仅训练或 `--skip-image-metrics` 时可以暂不安装。
 
@@ -551,9 +551,9 @@ test -x "${MIG_NEW_HOME}/.local/bin/ldview"
 test -d "${MIG_NEW_TASK_ROOT}/BrickNet/data/bricknet_datasets/ldraw"
 ```
 
-## 10. 新服务器：最小预训练模型方案
+## 8. 新服务器：最小预训练模型方案
 
-### 10.1 主训练链路只下载一个基础模型
+### 8.1 主训练链路只下载一个基础模型
 
 不要迁移完整 Hugging Face cache，也不要迁移 PT-merged 模型。只下载固定 revision：
 
@@ -577,7 +577,7 @@ rsync -aH --partial --info=progress2 \
 
 不需要迁移 Qwen3.5-2B/4B/9B、Qwen3-0.6B/1.7B/4B/8B/14B 等历史基线权重。
 
-### 10.2 可选：完整图文评测模型
+### 8.2 可选：完整图文评测模型
 
 训练、推理、BLEU/ROUGE、parse、collision 和 GRPO alignment 指标都不需要以下模型。
 只有重新计算 PE、SigLIP2、VQAScore 时才执行：
@@ -604,9 +604,9 @@ conda run -n bricknet hf download \
 PE 只保留 safetensors，排除重复的 9 GiB `.bin`。三项可选权重合计约 32 GiB，而不是迁移
 当前 101 GiB `hf_checkpoints`。
 
-## 11. 新服务器：重建派生产物并验收
+## 9. 新服务器：重建派生产物并验收
 
-### 11.1 重新生成 PT-merged base 和 adapter view
+### 9.1 重新生成 PT-merged base 和 adapter view (根据实验进度自行选择权重使用rsync迁移)
 
 ```bash
 source "${MIG_NEW_HOME}/miniconda3/etc/profile.d/conda.sh"
@@ -632,24 +632,24 @@ ms-swift/models/Qwen3.5-0.8B-exp3-adapter/
 这里显式传入 snapshot 路径，避免以后 Hugging Face 仓库的 `main` 更新时静默换用其他
 revision。
 
-### 11.2 检查数据与软链接
+### 9.2 检查数据与软链接
 
 ```bash
-test -f "${MIG_NEW_TASK_ROOT}/LlamaFactory/data/BrickNet-MM_PT.json"
-test -f "${MIG_NEW_TASK_ROOT}/LlamaFactory/data/BrickNet-MM_SFT.json"
-test -f "${MIG_NEW_TASK_ROOT}/LlamaFactory/data/BrickNet-MM_VAL.json"
-test -f "${MIG_NEW_TASK_ROOT}/BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_VAL.jsonl"
-test -d "${MIG_NEW_TASK_ROOT}/LlamaFactory/data/images"
-test -f "${MIG_NEW_TASK_ROOT}/ms-swift/data/BrickNet-MM-RL_n2000_seed42.jsonl"
+test -f "/data/jiahao/task/LlamaFactory/data/BrickNet-MM_PT.json"
+test -f "/data/jiahao/task/LlamaFactory/data/BrickNet-MM_SFT.json"
+test -f "/data/jiahao/task/LlamaFactory/data/BrickNet-MM_VAL.json"
+test -f "/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_VAL.jsonl"
+test -d "/data/jiahao/task/LlamaFactory/data/images"
+test -f "/data/jiahao/task/ms-swift/data/BrickNet-MM-RL_n2000_seed42.jsonl"
 
-test "$(find "${MIG_NEW_TASK_ROOT}/BrickNet/outputs_preprocess/BrickNet-MM/images/PT" -type f | wc -l)" -eq 135051
-test "$(find "${MIG_NEW_TASK_ROOT}/BrickNet/outputs_preprocess/BrickNet-MM/images/SFT" -type f | wc -l)" -eq 67178
-test "$(find "${MIG_NEW_TASK_ROOT}/BrickNet/outputs_preprocess/BrickNet-MM/images/VAL" -type f | wc -l)" -eq 512
-test "$(wc -l < "${MIG_NEW_TASK_ROOT}/ms-swift/data/BrickNet-MM-RL_n2000_seed42.jsonl")" -eq 2000
-test "$(find "${MIG_NEW_HOME}/.local/share/bricknet/inset" -type f | wc -l)" -eq 21084
+test "$(find "/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/images/PT" -type f | wc -l)" -eq 135051
+test "$(find "/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/images/SFT" -type f | wc -l)" -eq 67178
+test "$(find "/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/images/VAL" -type f | wc -l)" -eq 512
+test "$(wc -l < "/data/jiahao/task/ms-swift/data/BrickNet-MM-RL_n2000_seed42.jsonl")" -eq 2000
+test "$(find "/home/jiahao/.local/share/bricknet/inset" -type f | wc -l)" -eq 21084
 ```
 
-### 11.3 校验关键文件 SHA-256
+### 9.3 校验关键文件 SHA-256
 
 如果是新登录 shell，先定义：
 
@@ -685,7 +685,7 @@ printf '%s  %s\n' \
 图片数量很多，不逐个在文档中保存 hash。传输完成后可以在旧服务器把第 5.1 节的图片
 `rsync` 命令改为 `rsync -aHnci` 再执行一次；没有输出即表示目标图片内容一致。
 
-### 11.4 Reward 和评测 dry-run
+### 9.4 Reward 和评测 dry-run
 
 ```bash
 cd "${MIG_NEW_TASK_ROOT}/ms-swift"
@@ -704,7 +704,7 @@ bash examples/train/grpo/plugin/bricknet/evaluate_exp0_qwen35_08b_exp3.sh \
 `verify_reward.py` 的七项输出应全部为 `1.0`。dry-run 通过后，迁移已满足训练、GRPO 推理
 和非图文评测要求。
 
-### 11.5 运行推理或重新评测
+### 9.5 运行推理或重新评测 (根据实验进度自行决定是否需要重跑实验)
 
 GRPO 交互推理：
 
@@ -714,7 +714,7 @@ EXP0_CHECKPOINT="${MIG_NEW_TASK_ROOT}/ms-swift/${MIG_GRPO_REL}/checkpoint-1000" 
 bash examples/train/grpo/plugin/bricknet/infer_exp0_qwen35_08b_exp3.sh
 ```
 
-安装第 10.2 节可选模型后，重新执行完整评测：
+安装第 8.2 节可选模型后，重新执行完整评测：
 
 ```bash
 bash examples/train/grpo/plugin/bricknet/evaluate_exp0_qwen35_08b_exp3.sh

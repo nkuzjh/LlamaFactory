@@ -1,6 +1,6 @@
 # 实验进度与结果汇总
 
-更新时间：2026-08-06
+更新时间：2026-08-11 03:51 +08:00
 
 本文档统一记录 LlamaFactory 的 PT/SFT 实验和 ms-swift 的 GRPO 实验。具体训练、推理
 命令仍分别保留在 [LlamaFactory record](record.md) 和
@@ -29,16 +29,20 @@ size 2、gradient accumulation 8、learning rate `5e-5` 和 cosine scheduler。
 
 阶段 2 Thinking-Hard 是明确例外：用户于 2026-08-06 冻结 `qwen3_5_nothink`、`enable_thinking=false`、
 `cutoff_len=16384`、`packing=false`、`train_on_prompt=false`，推理 `max_new_tokens=16384`。显式 `<think>` 是 assistant
-监督文本，不叠加 Qwen 原生 thinking 模板。无思考对照统一命名为 `NonThinking-Control`。该阶段尚未启动。
-`exp4`–`exp4_3` 的训练/预测配置、安全 dry-run launcher、extractor、VAL511/VAL512 数据和 paired 10k 已准备。
-overfit 协议为直接用官方 VAL 中 collision-free 的 511 条训练，并在原始完整 512 条上推理；两个 token gate
-均已通过。50k/all 准备暂停且不预占版本号。当前只等待阶段 0 冻结公共初始化和用户 gate。完整准备状态见
+监督文本，不叠加 Qwen 原生 thinking 模板。无思考对照统一命名为 `NonThinking-Control`。Stage 0 mixed PT-exp1
+final 已完成；`exp4`–`exp4_3` 四个训练和原始 VAL512 的 512/512 推理均已完成，`exp4_2/exp4_3` 全指标已完成。
+原 Stage 2 的 50k/all 继续暂停。新增 PT-exp2 性能支线使用独立
+`PT-exp2-text8m/mm-e1/e2/e3` 命名；下游不做 VAL511，版本从 `exp4_4` 10k 继续递增到 `exp4_5` 50k、
+`exp4_6` all，详情见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
+数据、配置、gate 和执行命令见
 [Stage 2 runbook](bricknet-stage2-thinking-hard.md)。
 
 | Exp | 框架 | Train output | 初始化 | 数据 | 样本数 | Epoch | 主要 ablation | Train loss | 状态 |
 | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | --- |
 | PT-exp0 | LlamaFactory | `train_PT_exp0_qwen35_08b_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-PT | 135,051 | 3 | MM-PT：图像+inventory → path | 0.1507 | 完成并评测 |
-| PT-exp1 | LlamaFactory | `train_PT_exp1_qwen35_08b_bricknet_text270k_mmpt135k_ep1_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet text PT + BrickNet-MM-PT | 405,153 | 1 | 固定曝光预算的 text+MM mixed PT | - | 运行中；2026-08-05 22:33核对时最新`checkpoint-20000`，总25,323 steps |
+| PT-exp1 | LlamaFactory | `train_PT_exp1_qwen35_08b_bricknet_text270k_mmpt135k_ep1_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet text PT + BrickNet-MM-PT | 405,153 | 1 | 固定曝光预算的 text+MM mixed PT | 0.0683 | 完成；final 已作为 Stage 2 共同初始化 |
+| PT-exp2-text8m | LlamaFactory | `train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_ga8_lora64_len6401_nopack` | Qwen3.5-0.8B | first-round + cross-pool exact-dedup text path PT | 7,698,261 | 250k steps（约 1.03919 epoch） | path+EOS、6,401-token non-packed full-sequence PT、global batch 32 | - | 未训练；source/shard/VAL1000、全量 parse 和 train view 完成；10k collision 94/10,000 仅作 provenance；等待 GPU |
+| PT-exp2-mm-e1/e2/e3 | LlamaFactory | `train_PT_exp2_mm_{e1,e2,e3}_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400` | PT-exp2-text8m → e1 → e2 adapter | all MM-PT + 三组不重叠 1:1 text replay | 150,668 / 150,637 / 150,718 | 各 1 epoch | 三次顺序 multimodal consolidation；replay 15,617/15,586/15,667，ratio 1.0000053/1.0000294/0.9999832；每轮后独立 VAL512 推理 | - | 三组数据与 processor zero-error/zero-truncation gate 完成；e1 等待 text8m adapter |
 | exp2 | LlamaFactory | `train_exp2_qwen35_08b_sft1w_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-SFT | 10,000 | 3 | 无 PT，小规模 SFT | 0.2418 | 完成并评测 |
 | exp2_1 | LlamaFactory | `train_exp2_1_qwen35_08b_sft5w_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-SFT | 50,000 | 3 | 无 PT，扩大 SFT 数据量 | 0.2031 | 完成并评测 |
 | exp2_2 | LlamaFactory | `train_exp2_2_qwen35_08b_sft_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-SFT | 334,355 | 3 | 无 PT，全量 SFT | - | 中断于 20,660/62,694；可恢复 `checkpoint-20000` |
@@ -47,14 +51,23 @@ overfit 协议为直接用官方 VAL 中 collision-free 的 511 条训练，并�
 | GRPO-exp0 | ms-swift | `../ms-swift/output/bricknet_grpo/exp0_qwen35_08b_exp3_rl_n2000_g8` | PT-exp0 merged + exp3 adapter | BrickNet-MM-RL | 2,000 | 1 | GRPO，五项结构/几何 reward，G=8 | - | 完成并评测 |
 | exp3_1 | LlamaFactory | `train_exp3_1_qwen35_08b_pt_sft5w_ep3_bs2_ga8_lora64` | PT-exp0 adapter | BrickNet-MM-SFT | 50,000 | 3 | PT + 50k SFT | 0.1673 | 完成并评测 |
 | exp3_2 | LlamaFactory | `train_exp3_2_qwen35_08b_pt_sft_ep3_bs2_ga8_lora64` | PT-exp0 adapter | BrickNet-MM-SFT | 334,355 | 3 | PT + 全量 SFT | - | 未开始 |
-| exp4 | LlamaFactory | `train_exp4_qwen35_08b_mixedpt_stage2_nonthinking_control_val511_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 NonThinking-Control VAL511 | 511 | 3 | 无思考 overfit 链路检查 | - | 准备完成；等待 Stage0，未训练 |
-| exp4_1 | LlamaFactory | `train_exp4_1_qwen35_08b_mixedpt_stage2_thinking_hard_val511_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 Thinking-Hard VAL511 | 511 | 3 | Thinking-Hard overfit 链路检查 | - | 准备完成；等待 Stage0，未训练 |
-| exp4_2 | LlamaFactory | `train_exp4_2_qwen35_08b_mixedpt_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 NonThinking-Control 10k | 10,000 | 3 | 无思考正式 paired 对照 | - | 准备完成；等待 Stage0 + overfit gate，未训练 |
-| exp4_3 | LlamaFactory | `train_exp4_3_qwen35_08b_mixedpt_stage2_thinking_hard_10k_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 Thinking-Hard 10k | 10,000 | 3 | Thinking-Hard 正式 paired 实验 | - | 准备完成；等待 Stage0 + overfit gate，未训练 |
+| exp4 | LlamaFactory | `train_exp4_qwen35_08b_mixedpt_stage2_nonthinking_control_val511_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 NonThinking-Control VAL511 | 511 | 3 | 无思考 overfit 链路检查 | 0.1738 | 训练完成；VAL512 512/512 推理完成 |
+| exp4_1 | LlamaFactory | `train_exp4_1_qwen35_08b_mixedpt_stage2_thinking_hard_val511_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 Thinking-Hard VAL511 | 511 | 3 | Thinking-Hard overfit 链路检查 | 0.0860 | 训练完成；VAL512 512/512 推理完成 |
+| exp4_2 | LlamaFactory | `train_exp4_2_qwen35_08b_mixedpt_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 NonThinking-Control 10k | 10,000 | 3 | 无思考正式 paired 对照 | 0.1727 | 训练、512 推理和全指标完成 |
+| exp4_3 | LlamaFactory | `train_exp4_3_qwen35_08b_mixedpt_stage2_thinking_hard_10k_ep3_bs1_ga16_lora64_len16384` | mixed PT-exp1 final | Stage2 Thinking-Hard 10k | 10,000 | 3 | Thinking-Hard 正式 paired 实验 | 0.0434 | 训练、512 推理、strict extraction 和全指标完成 |
+| exp4_4 | LlamaFactory | `train_exp4_4_qwen35_08b_PT_exp2_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384` | final `PT-exp2` alias | Stage2 NonThinking-Control 10k | 10,000 | 3 | 新 PT 初始化的首个下游候选；无 VAL511 | - | dormant；等待 PT-exp2 alias |
+| exp4_5 | LlamaFactory | `train_exp4_5_qwen35_08b_PT_exp2_stage2_nonthinking_control_50k_ep3_bs1_ga16_lora64_len16384` | final `PT-exp2` alias | Stage2 NonThinking-Control 50k | 50,000 | 3 | exp4_4 收益 gate 后扩容 | - | dormant；未物化 50k |
+| exp4_6 | LlamaFactory | `train_exp4_6_qwen35_08b_PT_exp2_stage2_nonthinking_control_all66456_ep3_bs1_ga16_lora64_len16384` | final `PT-exp2` alias | Stage2 NonThinking-Control all | 66,456 | 3 | exp4_5 收益 gate 后扩容 | - | dormant |
 
 PT-exp0 虽然命名为 PT，但在 LlamaFactory 中使用 `stage=sft` 和 BrickNet-MM-PT，属于
 多模态监督预训练式训练，不等同于原始 BrickNet 使用固定 `"a"` prompt 的无条件
 text-only PT。
+
+Stage 2 的 paired 全指标已齐。`exp4_2` 为 parsable `382/512 (74.61%)`、clean `93/512 (18.16%)`、dense
+reward `0.58159`、strict success `16/512 (3.12%)`；`exp4_3` 为 parsable/trace-valid `360/512 (70.31%)`、
+clean `101/512 (19.73%)`、dense reward `0.57395`、strict success `13/512 (2.54%)`。Thinking-Hard 提高 clean
+`+1.56 pp` 和 collision-prefix `+0.0133`，但降低 parsable `-4.30 pp`、dense reward `-0.00765`、strict success
+`-0.59 pp`，三项图文指标也较低；当前没有总体优势，T1-10k 人工推广 gate 未批准。
 
 ## GRPO 在线训练结果
 
@@ -94,6 +107,8 @@ SFT 的对齐指标均由保留的逐样本预测按当前 GRPO verifier 重新�
 | exp3 | MM-PT + SFT-10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3; eval p=.95, k=20, t=1 | 340 (66.41%) | 5.6895 | 0.2830 | 0.8218 | 0.7662 | 85 (16.60%) | 91.5485 | 95.5846 | 66.0981 | 55.2628 | 0.1880 | 0.5457 | 0.5088 | 0.8289 | 0.8608 | 0.8247 | 0.4702 | 0.1501 | 0.5595 | 17 (3.32%) |
 | exp3_0_1 | MM-PT + SFT-10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=10; eval p=.95, k=20, t=1 | 267 (52.15%) | 5.1797 | 0.2833 | 0.8225 | 0.7657 | 75 (14.65%) | 91.3399 | 95.4301 | 66.2890 | 56.0601 | 0.1477 | 0.4289 | 0.3993 | 0.7335 | 0.7851 | 0.7299 | 0.4827 | 0.1463 | 0.5171 | 18 (3.52%) |
 | GRPO-exp0 | MM-PT + SFT-10k + RL-2k | Qwen3.5-0.8B-PT-SFT-RL | GRPO lr=5e-6, ep=1, G=8, t_train=.9, p_train=1; eval p=.95, k=20, t=1 | 324 (63.28%) | 5.8086 | 0.2831 | 0.8182 | 0.7549 | 78 (15.23%) | 91.6202 | 95.6808 | 66.2536 | 55.7319 | 0.1791 | 0.5178 | 0.4777 | 0.8301 | 0.8625 | 0.8262 | 0.4630 | 0.1486 | 0.5583 | 14 (2.73%) |
+| exp4_2 | mixed PT-exp1 + NonThinking-Control 10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3, len=16384; eval p=.95, k=20, t=1 | 382 (74.61%) | 6.2012 | 0.2804 | 0.7896 | 0.7552 | 93 (18.16%) | 90.6938 | 95.3249 | 66.1692 | 55.6116 | 0.2092 | 0.5891 | 0.5634 | 0.8850 | 0.8995 | 0.8739 | 0.4610 | 0.1504 | 0.5816 | 16 (3.12%) |
+| exp4_3 | mixed PT-exp1 + Thinking-Hard 10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3, len=16384; eval extracted path p=.95, k=20, t=1 | 360 (70.31%) | 6.1738 | 0.2799 | 0.7818 | 0.7486 | 101 (19.73%) | 90.8840 | 95.3189 | 65.7112 | 55.1668 | 0.1968 | 0.5497 | 0.5264 | 0.8663 | 0.8812 | 0.8603 | 0.4743 | 0.1452 | 0.5739 | 13 (2.54%) |
 
 ### 指标含义与计算
 

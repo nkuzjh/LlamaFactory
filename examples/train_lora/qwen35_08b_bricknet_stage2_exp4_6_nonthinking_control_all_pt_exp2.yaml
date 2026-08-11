@@ -1,0 +1,58 @@
+### exp4_6: PT-exp2 -> Stage-2 NonThinking-Control all 66,456 (dormant until exp4_5 gate)
+
+### model
+model_name_or_path: Qwen/Qwen3.5-0.8B
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2
+trust_remote_code: true
+flash_attn: auto
+disable_gradient_checkpointing: false
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+create_new_adapter: true
+lora_target: all
+lora_rank: 64
+lora_alpha: 128
+lora_dropout: 0.0
+freeze_vision_tower: true
+freeze_multi_modal_projector: true
+
+### dataset
+dataset: BrickNet-Stage2-NonThinking-Control-All
+dataset_dir: data
+media_dir: /home/jiahao/task/BrickNet
+template: qwen3_5_nothink
+enable_thinking: false
+cutoff_len: 16384
+train_on_prompt: false
+packing: false
+preprocessing_num_workers: 16
+dataloader_num_workers: 4
+tokenized_path: .llamafactory_cache/tokenized_dataset/exp4_6-PT-exp2-nonthinking-control-all66456-qwen35-08b-len16384
+image_max_pixels: 589824
+image_min_pixels: 1024
+video_max_pixels: 65536
+video_min_pixels: 256
+
+### output
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_6_qwen35_08b_PT_exp2_stage2_nonthinking_control_all66456_ep3_bs1_ga16_lora64_len16384
+logging_steps: 10
+save_steps: 1250
+plot_loss: true
+report_to: none
+include_num_input_tokens_seen: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 16
+learning_rate: 5.0e-5
+num_train_epochs: 3.0
+lr_scheduler_type: cosine
+warmup_steps: 0
+max_grad_norm: 1.0
+optim: adamw_torch
+bf16: true
+ddp_timeout: 180000000
+seed: 42

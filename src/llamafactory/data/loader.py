@@ -74,7 +74,9 @@ def _load_single_dataset(
         data_files = []
         local_path = os.path.join(data_args.dataset_dir, dataset_attr.dataset_name)
         if os.path.isdir(local_path):  # is directory
-            for file_name in os.listdir(local_path):
+            # Directory-backed local corpora (for example sharded BrickNet PT)
+            # must preserve a reproducible shard order across filesystems.
+            for file_name in sorted(os.listdir(local_path)):
                 data_files.append(os.path.join(local_path, file_name))
         elif os.path.isfile(local_path):  # is file
             data_files.append(local_path)

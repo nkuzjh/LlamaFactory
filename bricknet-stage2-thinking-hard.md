@@ -1,7 +1,8 @@
 # BrickNet Stage 2 Thinking-Hard SFT Runbook
 
-状态：`exp4`–`exp4_3` 的数据、配置、注册项、启动命令和 dry-run gate 已准备；阶段 2 训练及推理均未启动。
-当前训练入口的唯一外部等待项是阶段 0 gate 与 mixed PT-exp1 final adapter；预测还必须等待对应阶段 2 adapter。
+状态（2026-08-11 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3` 四个训练和 VAL512
+512/512 推理和全指标均完成。paired 结果显示 Thinking-Hard 只改善 clean/collision-prefix，parsable、dense、
+strict success 和图文指标均低于 Control；T1-10k 人工推广 gate 尚未批准。
 
 本阶段比较严格同 ID 的两组数据：
 
@@ -32,9 +33,9 @@
 annotation/token gate、dataset registry、数据与 manifest 行数、10k 物化报告/hash、对应 Stage-2 adapter 和输出目录。
 10k train 还要求在 paired VAL511 结果经审核后显式传入 `--overfit-gate-approved`，防止跳级。
 
-50k/all 当前暂停：不分配实验版本号，不提供训练/预测配置、dataset registry 或 launcher scale；此前用于 all 的两个
-临时软链接已移除，Stage-1 的 66,456 条不可变源数据未删除。已有 50k/all nested manifest 仅作未来可复现依据；
-只有用户明确恢复该路线后才能继续准备。
+原 Stage 2 路线的 50k/all 当前暂停：`launch_bricknet_stage2_sft.py` 不接受这两个 scale；此前用于 all 的两个
+临时软链接已移除，Stage-1 的 66,456 条不可变源数据未删除。新 PT-exp2 分支另外预留 `exp4_5/exp4_6` 的 dormant
+配置和 registry，但仍分别受 exp4_4/exp4_5 人工收益 gate 保护，不能据此绕过本路线的暂停决定。
 
 ## 2. 数据准备与证据
 
@@ -166,7 +167,7 @@ python scripts/launch_bricknet_stage2_sft.py \
 
 不得把 `--scale` 改成 50k/all；启动器不会接受这两个暂停规模。
 
-## 4. 预测与 path extractor
+## 4. 预测与统一评测
 
 每个 checkpoint 都对完整 512 条 VAL 推理。对应 dry-run 命令为：
 
@@ -181,7 +182,21 @@ python scripts/launch_bricknet_stage2_sft.py \
   --action predict --variant thinking-hard --scale 10k
 ```
 
-预测 dry-run 在训练前会额外返回 `WAIT_STAGE2_TRAIN`。Thinking-Hard 生成完成后，使用 strict extractor：
+完整评测统一使用以下入口；默认 dry-run，正式执行追加 `--execute`：
+
+```bash
+python scripts/evaluate_bricknet_stage2.py --experiment exp4
+python scripts/evaluate_bricknet_stage2.py --experiment exp4_1
+python scripts/evaluate_bricknet_stage2.py --experiment exp4_2
+python scripts/evaluate_bricknet_stage2.py --experiment exp4_3
+```
+
+该入口依次完成 strict path 提取、path BLEU/ROUGE、BrickNet 结构/渲染/图文指标和 alignment，并自动选择
+`nonthinking-control` 或 `thinking-hard`。已有完整结果会安全复用；只有显式传入 `--force` 才会重算。
+
+预测 dry-run 在训练前会额外返回 `WAIT_STAGE2_TRAIN`。launcher 在预测成功后自动运行 strict extractor，输出与
+`generated_predictions.jsonl` 同目录的 `path_predictions.jsonl` 和 `trace_extraction_report.json`。需要对已有预测
+补做或重做提取时，执行：
 
 ```bash
 cd /home/jiahao/task/BrickNet
@@ -190,27 +205,40 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   --variant thinking-hard \
   --label-format path \
   --input /home/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/generated_predictions.jsonl \
-  --output outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512/path_predictions.jsonl \
-  --report outputs_val/qwen35_08b/eval_exp4_3_stage2_thinking_hard_10k_val512/trace_extraction_report.json
+  --output /home/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/path_predictions.jsonl \
+  --report /home/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_stage2_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20/trace_extraction_report.json \
+  --overwrite
 ```
 
-LlamaFactory 对 trace 文本计算的 BLEU/ROUGE 不是最终结构指标；最终报告必须包含 trace-format、extractor、
+Thinking-Hard 的 `generated_predictions.jsonl` 是 reasoning trace，BrickNet 结构和 alignment 评测必须读取提取后的
+`path_predictions.jsonl`。文本指标同样必须基于 extracted path 重新计算，并通过 `--text-metrics` 显式传给 evaluator；
+原始 LlamaFactory `predict_results.json` 比较的是 trace 和 path label，数值无效。最终报告必须包含 trace-format、extractor、
 parse、inventory、collision、pose、语义指标、token、延迟和 GPU time。
 
-## 5. 准备完成口径与等待项
+两种 variant 使用同一个 canonical evaluation contract：
 
-四个实验的本地准备已完成：配置与 registry 存在、VAL/10k 数据和 manifest 行数正确、10k hash 与物化报告一致、
-VAL 和全量 Stage-1 token gate 通过、八个 train/predict dry-run 均只出现预期等待项，且所有输出目录均不存在。
+| Variant | `generated_predictions.jsonl` | `path_predictions.jsonl` | 后续结构/图文/text/alignment 输入 |
+| --- | --- | --- | --- |
+| `nonthinking-control` | 原生 path | 只规范化末尾换行，path 内容不变 | canonical path |
+| `thinking-hard` | `<think>/<action>` trace | strict extractor 提取的 path 或合法前缀 | canonical path |
 
-这不等于可立即训练：
+launcher 会根据 experiment 自动传入正确的 `--variant`。手工调用 extractor 时必须显式选择 variant。non-thinking
+报告中的 `trace_format_rate=100%` 只表示无需解析 trace，不代表结构 100% 合法；两类实验的 Connectivity/Clean
+仍统一由 BrickNet path scorer 计算。
 
-1. mixed PT-exp1 输出根目录尚无 final `adapter_config.json` 和 adapter 权重，训练 dry-run 返回
-   `WAIT_STAGE0_FINAL`；
-2. 即使 final adapter 存在，仍须用户确认阶段 0 gate 并显式传入 `--stage0-gate-approved --execute`；
-3. 10k train 还必须等待 paired VAL511 审核并显式传入 `--overfit-gate-approved`；当前返回
-   `WAIT_STAGE2_OVERFIT_GATE`；
-4. 16,384 token 的真实吞吐与峰值显存只能在获准后的 511 overfit 中确认；两组必须保持相同有效 batch；
-5. 预测必须等待对应 Stage-2 adapter，因此当前额外返回 `WAIT_STAGE2_TRAIN`；
-6. 50k/all 准备暂停，当前不属于可执行实验范围。
+## 5. 当前完成度与等待项
 
-准备代码和 dry-run 不代表阶段 2 已开始；只有安全启动器实际调用 LlamaFactory trainer 才算进入训练。
+四个实验均已通过既有数据/manifest/token/launcher gate并完成训练：
+
+1. `exp4`：train loss `0.1737931`，VAL512 512/512 推理完成；
+2. `exp4_1`：train loss `0.0859583`，VAL512 512/512 推理完成；
+3. `exp4_2`：train loss `0.1726632`，VAL512 512/512 推理和全指标完成；parsable
+   `382/512 (74.61%)`、clean `93/512 (18.16%)`、dense reward `0.58159`、strict success `16/512 (3.12%)`；
+4. `exp4_3`：train loss `0.0433687`，VAL512 512/512 推理完成；strict extractor 得到
+   `360/512 (70.31%)` 完整合法 trace/path，512 条均有非空 extracted prefix；全指标为 clean
+   `101/512 (19.73%)`、Collision `6.1738`、PE/SigLIP2/VQAScore `0.2799/0.7818/0.7486`、Inventory F1
+   `0.8812`、dense reward `0.57395`、strict success `13/512 (2.54%)`。
+
+相对 exp4_2，exp4_3 的 clean `+1.56 pp`、collision-prefix `+0.0133`，但 parsable `-4.30 pp`、dense reward
+`-0.00765`、strict success `-0.59 pp`，PE/SigLIP2/VQA 也较低，因此没有总体优势。Stage 2 原路线的 50k/all
+继续暂停；新 PT-exp2 分支另从 `exp4_4` 10k 开始，见 [PT-exp2 runbook](bricknet-pt-exp2.md)。

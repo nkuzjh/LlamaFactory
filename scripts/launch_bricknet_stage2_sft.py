@@ -21,6 +21,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 BRICKNET_ROOT = Path("/home/jiahao/task/BrickNet")
+BRICKNET_PYTHON = Path("/home/jiahao/miniconda3/envs/bricknet/bin/python")
+TRACE_EXTRACTOR = BRICKNET_ROOT / "scripts/extract_reasoning_predictions.py"
 REASONING_ROOT = BRICKNET_ROOT / "outputs_preprocess/BrickNet-MM-Reasoning"
 CONFIG_ROOT = ROOT / "examples/train_lora"
 STAGE0_ADAPTER = (
@@ -203,6 +205,25 @@ def _command(args: argparse.Namespace, experiment: Experiment, stage0: Path) -> 
     return command, output
 
 
+def _postprocess_command(experiment: Experiment) -> list[str]:
+    return [
+        "env",
+        f"PYTHONPATH={BRICKNET_ROOT / 'src'}",
+        str(BRICKNET_PYTHON),
+        str(TRACE_EXTRACTOR),
+        "--variant",
+        experiment.variant,
+        "--label-format",
+        "path",
+        "--input",
+        str(experiment.predict_output / "generated_predictions.jsonl"),
+        "--output",
+        str(experiment.predict_output / "path_predictions.jsonl"),
+        "--report",
+        str(experiment.predict_output / "trace_extraction_report.json"),
+    ]
+
+
 def _check_val_gates(args: argparse.Namespace, checks: dict[str, Any], blockers: list[str]) -> None:
     val_report = _load_json(VAL_REPORT)
     val_train_token_report = _load_json(VAL_TRAIN_TOKEN_REPORT)
@@ -274,6 +295,7 @@ def main() -> None:
     experiment = EXPERIMENTS[(args.variant, args.scale)]
     stage0 = args.stage0_adapter.expanduser().resolve()
     command, output = _command(args, experiment, stage0)
+    postprocess_command = _postprocess_command(experiment) if args.action == "predict" else None
     blockers: list[str] = []
     checks: dict[str, Any] = {}
 
@@ -357,6 +379,14 @@ def main() -> None:
         checks["stage2_adapter_ready"] = _adapter_ready(experiment.train_output)
         if not checks["stage2_adapter_ready"]:
             blockers.append("WAIT_STAGE2_TRAIN: requested Stage-2 adapter is not complete")
+        checks["trace_extractor"] = str(TRACE_EXTRACTOR)
+        checks["trace_extractor_ready"] = TRACE_EXTRACTOR.is_file()
+        checks["bricknet_python"] = str(BRICKNET_PYTHON)
+        checks["bricknet_python_ready"] = BRICKNET_PYTHON.is_file()
+        if not checks["trace_extractor_ready"]:
+            blockers.append("BrickNet strict prediction extractor is missing")
+        if not checks["bricknet_python_ready"]:
+            blockers.append("BrickNet Python environment is missing")
 
     checks["output_dir"] = str(output)
     checks["output_dir_absent"] = not output.exists()
@@ -379,6 +409,7 @@ def main() -> None:
         "blockers": blockers,
         "ready": not blockers,
         "command": shlex.join(command),
+        "postprocess_command": shlex.join(postprocess_command) if postprocess_command else None,
         "training_started": False,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -387,6 +418,8 @@ def main() -> None:
     if blockers:
         raise SystemExit("Stage-2 launch blocked; resolve the reported gates first")
     subprocess.run(command, cwd=ROOT, check=True)
+    if postprocess_command:
+        subprocess.run(postprocess_command, cwd=BRICKNET_ROOT, check=True)
 
 
 if __name__ == "__main__":
