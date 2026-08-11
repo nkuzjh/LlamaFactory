@@ -2,7 +2,7 @@
 
 ### model
 model_name_or_path: Qwen/Qwen3.5-0.8B
-adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2,saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_4_qwen35_08b_PT_exp2_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2,saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_4_qwen35_08b_PT_exp2_stage2_nonthinking_control_10k_ep3_bs1_gbs16_lora64_len16384
 trust_remote_code: true
 flash_attn: auto
 

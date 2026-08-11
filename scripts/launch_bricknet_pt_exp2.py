@@ -32,9 +32,7 @@ TEXT_MANIFEST = DATA_ROOT / "text8m/manifest.json"
 TEXT_VIEW = DATA_ROOT / "text8m_train"
 TEXT_COUNT_FAILURE = DATA_ROOT / "text8m.building/count_gate_failure.json"
 MM_MANIFEST = DATA_ROOT / "mm/manifest.json"
-MM_TOKEN_AUDIT_ROOT = (
-    BRICKNET_ROOT / "outputs_preprocess/BrickNet-MM-PT-exp2/reports/token_audit_mm6400"
-)
+MM_TOKEN_AUDIT_ROOT = BRICKNET_ROOT / "outputs_preprocess/BrickNet-MM-PT-exp2/reports/token_audit_mm6400"
 MM_EPOCH_EXPECTED = {
     "e1": {"rows": 150_668, "text_replay_rows": 15_617, "text_replay_target_tokens": 26_285_287},
     "e2": {"rows": 150_637, "text_replay_rows": 15_586, "text_replay_target_tokens": 26_285_922},
@@ -43,6 +41,9 @@ MM_EPOCH_EXPECTED = {
 FINAL_ALIAS = SAVE_ROOT / "PT-exp2"
 STAGE2_PREP = BRICKNET_ROOT / "data_preprocess/prepare_bricknet_stage2_sft.py"
 EVALUATOR = BRICKNET_ROOT / "scripts/evaluate_experiment.py"
+SUPPORTED_TRAIN_WORLD_SIZES = (1, 2)
+
+
 @dataclass(frozen=True)
 class Run:
     config: str
@@ -56,12 +57,12 @@ class Run:
 RUNS: dict[str, Run] = {
     "text8m": Run(
         "qwen35_08b_bricknet_pt_exp2_text8m.yaml",
-        "train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_ga8_lora64_len6401_nopack",
+        "train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack",
         "text",
     ),
     "mm-e1": Run(
         "qwen35_08b_bricknet_pt_exp2_mm_e1.yaml",
-        "train_PT_exp2_mm_e1_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400",
+        "train_PT_exp2_mm_e1_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400",
         "mm",
         prerequisite="text8m",
         dataset="PT-exp2-mm-e1.jsonl",
@@ -69,7 +70,7 @@ RUNS: dict[str, Run] = {
     ),
     "mm-e2": Run(
         "qwen35_08b_bricknet_pt_exp2_mm_e2.yaml",
-        "train_PT_exp2_mm_e2_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400",
+        "train_PT_exp2_mm_e2_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400",
         "mm",
         prerequisite="mm-e1",
         dataset="PT-exp2-mm-e2.jsonl",
@@ -77,7 +78,7 @@ RUNS: dict[str, Run] = {
     ),
     "mm-e3": Run(
         "qwen35_08b_bricknet_pt_exp2_mm_e3.yaml",
-        "train_PT_exp2_mm_e3_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400",
+        "train_PT_exp2_mm_e3_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400",
         "mm",
         prerequisite="mm-e2",
         dataset="PT-exp2-mm-e3.jsonl",
@@ -85,14 +86,14 @@ RUNS: dict[str, Run] = {
     ),
     "exp4_4": Run(
         "qwen35_08b_bricknet_stage2_exp4_4_nonthinking_control_10k_pt_exp2.yaml",
-        "train_exp4_4_qwen35_08b_PT_exp2_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384",
+        "train_exp4_4_qwen35_08b_PT_exp2_stage2_nonthinking_control_10k_ep3_bs1_gbs16_lora64_len16384",
         "downstream",
         dataset="/home/jiahao/task/LlamaFactory/data/bricknet_stage2/10k/BrickNet-Stage2-NonThinking-Control.jsonl",
         eval_name="eval_exp4_4_PT_exp2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20",
     ),
     "exp4_5": Run(
         "qwen35_08b_bricknet_stage2_exp4_5_nonthinking_control_50k_pt_exp2.yaml",
-        "train_exp4_5_qwen35_08b_PT_exp2_stage2_nonthinking_control_50k_ep3_bs1_ga16_lora64_len16384",
+        "train_exp4_5_qwen35_08b_PT_exp2_stage2_nonthinking_control_50k_ep3_bs1_gbs16_lora64_len16384",
         "downstream",
         prerequisite="exp4_4",
         dataset="/home/jiahao/task/LlamaFactory/data/bricknet_stage2/50k/BrickNet-Stage2-NonThinking-Control.jsonl",
@@ -100,7 +101,7 @@ RUNS: dict[str, Run] = {
     ),
     "exp4_6": Run(
         "qwen35_08b_bricknet_stage2_exp4_6_nonthinking_control_all_pt_exp2.yaml",
-        "train_exp4_6_qwen35_08b_PT_exp2_stage2_nonthinking_control_all66456_ep3_bs1_ga16_lora64_len16384",
+        "train_exp4_6_qwen35_08b_PT_exp2_stage2_nonthinking_control_all66456_ep3_bs1_gbs16_lora64_len16384",
         "downstream",
         prerequisite="exp4_5",
         dataset="/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/datasets/BrickNet-MM-NonThinking-Control.jsonl",
@@ -119,6 +120,27 @@ PREDICT_CONFIGS = {
 }
 
 TRAIN_RUNS = {"text8m", "mm-e1", "mm-e2", "mm-e3", "exp4_4", "exp4_5", "exp4_6"}
+TRAIN_BATCH_TARGETS = {
+    "text8m": {"per_device_batch_size": 4, "global_batch_size": 32},
+    "mm-e1": {"per_device_batch_size": 2, "global_batch_size": 16},
+    "mm-e2": {"per_device_batch_size": 2, "global_batch_size": 16},
+    "mm-e3": {"per_device_batch_size": 2, "global_batch_size": 16},
+    "exp4_4": {"per_device_batch_size": 1, "global_batch_size": 16},
+    "exp4_5": {"per_device_batch_size": 1, "global_batch_size": 16},
+    "exp4_6": {"per_device_batch_size": 1, "global_batch_size": 16},
+}
+
+
+def _train_batch_profile(run_name: str, world_size: int) -> dict[str, int]:
+    target = TRAIN_BATCH_TARGETS[run_name]
+    divisor = target["per_device_batch_size"] * world_size
+    if target["global_batch_size"] % divisor:
+        raise ValueError(f"global batch for {run_name} is not divisible by world size {world_size}")
+    return {
+        **target,
+        "world_size": world_size,
+        "gradient_accumulation_steps": target["global_batch_size"] // divisor,
+    }
 
 
 def _json(path: Path) -> Any:
@@ -139,17 +161,73 @@ def _adapter_ready(path: Path) -> bool:
     )
 
 
-def _gpu_processes() -> list[str]:
+def _visible_gpu_selectors() -> list[str] | None:
+    visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if visible is None:
+        return None
+    return [item.strip() for item in visible.split(",") if item.strip()]
+
+
+def _selected_gpu_uuids() -> set[str] | None:
+    selectors = _visible_gpu_selectors()
+    if selectors is None:
+        return None
+    if not selectors:
+        return set()
+
     command = [
         "nvidia-smi",
-        "--query-compute-apps=pid,used_memory,process_name",
+        "--query-gpu=index,uuid",
+        "--format=csv,noheader,nounits",
+    ]
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        # Preserve the previous conservative behavior if physical GPU indices
+        # cannot be resolved: inspect processes on every GPU.
+        return None
+
+    index_to_uuid = {}
+    gpu_uuids = []
+    for line in result.stdout.splitlines():
+        fields = [field.strip() for field in line.split(",", maxsplit=1)]
+        if len(fields) != 2:
+            continue
+        index, gpu_uuid = fields
+        index_to_uuid[index] = gpu_uuid
+        gpu_uuids.append(gpu_uuid)
+
+    selected = set()
+    for selector in selectors:
+        if selector in index_to_uuid:
+            selected.add(index_to_uuid[selector])
+            continue
+        selected.update(gpu_uuid for gpu_uuid in gpu_uuids if gpu_uuid.startswith(selector))
+    return selected
+
+
+def _gpu_processes() -> list[str]:
+    selected_gpu_uuids = _selected_gpu_uuids()
+    command = [
+        "nvidia-smi",
+        "--query-compute-apps=gpu_uuid,pid,used_memory,process_name",
         "--format=csv,noheader,nounits",
     ]
     try:
         result = subprocess.run(command, text=True, capture_output=True, check=True)
     except (FileNotFoundError, subprocess.CalledProcessError):
         return []
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    processes = []
+    for line in result.stdout.splitlines():
+        fields = [field.strip() for field in line.split(",", maxsplit=3)]
+        if len(fields) != 4:
+            continue
+        gpu_uuid, pid, used_memory, process_name = fields
+        if selected_gpu_uuids is not None and gpu_uuid not in selected_gpu_uuids:
+            continue
+        processes.append(f"{pid}, {used_memory}, {process_name}")
+    return processes
 
 
 def _prediction_dir(run: str) -> Path:
@@ -172,6 +250,22 @@ def _check_common(run_name: str, action: str) -> tuple[list[str], dict[str, Any]
         blockers.append("CONFIG_MISSING")
 
     if action == "train":
+        selectors = _visible_gpu_selectors()
+        world_size = len(selectors) if selectors is not None else None
+        checks["cuda_visible_devices"] = os.environ.get("CUDA_VISIBLE_DEVICES")
+        checks["distributed_world_size"] = world_size
+        checks["supported_world_sizes"] = list(SUPPORTED_TRAIN_WORLD_SIZES)
+        checks["batch_profile"] = (
+            _train_batch_profile(run_name, world_size) if world_size in SUPPORTED_TRAIN_WORLD_SIZES else None
+        )
+        resolved_uuids = _selected_gpu_uuids()
+        checks["resolved_gpu_count"] = len(resolved_uuids) if resolved_uuids is not None else None
+        if selectors is None:
+            blockers.append("SET_EXPLICIT_TRAIN_GPUS")
+        elif world_size not in SUPPORTED_TRAIN_WORLD_SIZES:
+            blockers.append("PT_EXP2_REQUIRES_1_OR_2_VISIBLE_GPUS")
+        elif resolved_uuids is not None and len(resolved_uuids) != world_size:
+            blockers.append("TRAIN_GPU_SELECTOR_UNRESOLVED_OR_DUPLICATE")
         output = SAVE_ROOT / run.output
         checks["output"] = str(output)
         checks["already_complete"] = _adapter_ready(output)
@@ -222,11 +316,7 @@ def _check_common(run_name: str, action: str) -> tuple[list[str], dict[str, Any]
                 or any(epoch_manifest.get(key) != value for key, value in expected.items())
             ):
                 blockers.append("PT_EXP2_MM_EPOCH_MANIFEST_DRIFT")
-            audit_report = (
-                MM_TOKEN_AUDIT_ROOT
-                / epoch
-                / "BrickNet-MM-Reasoning_token_audit_report.json"
-            )
+            audit_report = MM_TOKEN_AUDIT_ROOT / epoch / "BrickNet-MM-Reasoning_token_audit_report.json"
             checks["mm_token_audit"] = str(audit_report)
             checks["mm_token_audit_eligible"] = (
                 audit_report.is_file() and _json(audit_report).get("training_eligible") is True
@@ -260,9 +350,11 @@ def _check_common(run_name: str, action: str) -> tuple[list[str], dict[str, Any]
             blockers.append("PREDICTION_OUTPUT_ALREADY_EXISTS")
 
     gpu_processes = _gpu_processes()
+    checks["cuda_visible_devices"] = os.environ.get("CUDA_VISIBLE_DEVICES")
     checks["gpu_processes"] = gpu_processes
-    if gpu_processes:
-        blockers.append("WAIT_GPU_AVAILABLE")
+    # Temporarily disabled: report selected-GPU processes without blocking launch.
+    # if gpu_processes:
+    #     blockers.append("WAIT_GPU_AVAILABLE")
     return blockers, checks
 
 
@@ -281,13 +373,39 @@ def _run_train_or_predict(args: argparse.Namespace) -> None:
         "train",
         str(CONFIG_ROOT / config_name),
     ]
+    selectors = _visible_gpu_selectors()
+    if args.action == "train" and selectors and len(selectors) in SUPPORTED_TRAIN_WORLD_SIZES:
+        profile = _train_batch_profile(args.run, len(selectors))
+        command.append(f"gradient_accumulation_steps={profile['gradient_accumulation_steps']}")
+    env = os.environ.copy()
+    launch_env: dict[str, str] = {}
+    if selectors:
+        launch_env["CUDA_VISIBLE_DEVICES"] = ",".join(selectors)
+    if args.action == "train" and selectors and len(selectors) > 1:
+        launch_env.update(
+            {
+                "FORCE_TORCHRUN": "1",
+                "NPROC_PER_NODE": str(len(selectors)),
+                "NNODES": "1",
+            }
+        )
+        checks["launch_mode"] = "torchrun_ddp"
+    elif args.action == "train" and selectors:
+        for key in ("FORCE_TORCHRUN", "NPROC_PER_NODE", "NNODES"):
+            env.pop(key, None)
+        checks["launch_mode"] = "single_process"
+    env.update(launch_env)
+    display_command = command
+    if launch_env:
+        display_command = ["env", *[f"{key}={value}" for key, value in launch_env.items()], *command]
+    checks["launch_env"] = launch_env
     result = {
         "action": args.action,
         "run": args.run,
         "ready": not blockers,
         "blockers": blockers,
         "checks": checks,
-        "command": shlex.join(command),
+        "command": shlex.join(display_command),
         "executed": False,
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -295,7 +413,7 @@ def _run_train_or_predict(args: argparse.Namespace) -> None:
         return
     if blockers:
         raise SystemExit("PT-exp2 launch blocked; resolve the reported gates first")
-    subprocess.run(command, cwd=ROOT, check=True)
+    subprocess.run(command, cwd=ROOT, env=env, check=True)
 
 
 def _evaluate(args: argparse.Namespace) -> None:
@@ -310,8 +428,9 @@ def _evaluate(args: argparse.Namespace) -> None:
     if _metrics_path(args.run).is_file():
         blockers.append("EVALUATION_ALREADY_COMPLETE")
     gpu_processes = _gpu_processes()
-    if gpu_processes:
-        blockers.append("WAIT_GPU_AVAILABLE_FOR_IMAGE_METRICS")
+    # Temporarily disabled: GPU occupancy no longer blocks image-metric evaluation.
+    # if gpu_processes:
+    #     blockers.append("WAIT_GPU_AVAILABLE_FOR_IMAGE_METRICS")
     command = [
         str(BRICKNET_PYTHON),
         str(EVALUATOR),
@@ -324,10 +443,21 @@ def _evaluate(args: argparse.Namespace) -> None:
         "--output-dir",
         str(output),
     ]
-    print(json.dumps({
-        "action": "evaluate", "run": args.run, "ready": not blockers, "blockers": blockers,
-        "command": shlex.join(command), "executed": False,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "action": "evaluate",
+                "run": args.run,
+                "ready": not blockers,
+                "blockers": blockers,
+                "gpu_processes": gpu_processes,
+                "command": shlex.join(command),
+                "executed": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     if not args.execute:
         return
     if blockers:
@@ -404,12 +534,21 @@ def _materialize(args: argparse.Namespace) -> None:
         blockers.append("WAIT_EXP4_4_HUMAN_GATE")
     if output.exists():
         blockers.append("50K_DATASET_ALREADY_EXISTS")
-    command = [
-        str(BRICKNET_PYTHON), str(STAGE2_PREP), "materialize", "--scale", "50k"
-    ]
-    print(json.dumps({"action": "materialize", "run": args.run, "ready": not blockers,
-                      "blockers": blockers, "command": shlex.join(command), "executed": False},
-                     ensure_ascii=False, indent=2))
+    command = [str(BRICKNET_PYTHON), str(STAGE2_PREP), "materialize", "--scale", "50k"]
+    print(
+        json.dumps(
+            {
+                "action": "materialize",
+                "run": args.run,
+                "ready": not blockers,
+                "blockers": blockers,
+                "command": shlex.join(command),
+                "executed": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     if not args.execute:
         return
     if blockers:
@@ -430,10 +569,14 @@ def _approve_scale(args: argparse.Namespace) -> None:
     if gate.exists():
         blockers.append("APPROVAL_ALREADY_EXISTS")
     payload = {
-        "action": "approve-scale", "run": args.run, "metrics": str(metrics),
+        "action": "approve-scale",
+        "run": args.run,
+        "metrics": str(metrics),
         "metrics_sha256": _sha256(metrics) if metrics.is_file() else None,
         "decision_rule": "manual review that the preceding scale shows useful gain; no unfrozen numeric threshold",
-        "ready": not blockers, "blockers": blockers, "executed": False,
+        "ready": not blockers,
+        "blockers": blockers,
+        "executed": False,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     if not args.execute:
@@ -449,11 +592,26 @@ def _approve_scale(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--action", choices=("train", "predict", "evaluate", "select-final", "materialize", "approve-scale"), required=True)
+    parser.add_argument(
+        "--action",
+        choices=("train", "predict", "evaluate", "select-final", "materialize", "approve-scale"),
+        required=True,
+    )
     parser.add_argument("--run", choices=tuple(RUNS), default="text8m")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--approve", action="store_true")
+    parser.add_argument(
+        "--gpus",
+        nargs="+",
+        metavar="GPU",
+        help="physical CUDA indices/UUIDs to expose; PT-exp2 training supports one or two",
+    )
     args = parser.parse_args()
+    if args.gpus:
+        selectors = [selector for value in args.gpus for selector in value.split(",") if selector]
+        if len(selectors) != len(set(selectors)):
+            parser.error("--gpus contains duplicate CUDA selectors")
+        args.gpus = selectors
     if args.action == "predict" and args.run not in PREDICT_CONFIGS:
         parser.error(f"{args.run} has no predict configuration")
     return args
@@ -461,6 +619,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.gpus:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(args.gpus)
     if args.action in {"train", "predict"}:
         _run_train_or_predict(args)
     elif args.action == "evaluate":

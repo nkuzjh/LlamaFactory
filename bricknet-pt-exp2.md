@@ -1,6 +1,6 @@
 # BrickNet PT-exp2 Runbook
 
-状态（2026-08-11）：代码、dataset registry、PT/MM/downstream YAML 和 gate-protected launcher 已准备；
+状态（2026-08-12）：代码、dataset registry、PT/MM/downstream YAML 和 gate-protected launcher 已准备；
 MM 使用 e1→e2→e3 三次顺序 1-epoch 训练，三份推理 YAML 分别读取对应 final adapter。三组 MM 数据已通过
 完整 processor token gate，训练未开始。用户已冻结 7,698,261 条 first-round exact-dedup
 path 为本机规范；31 个既有 shard 已经完整源重扫、逐行对比、hash 和原子提升，未重写 34 GiB 数据。
@@ -15,7 +15,7 @@ seed-0 first-round PT-loss VAL1000 已生成；全量 7,698,261 条 parse 为 0 
 
 | 名称 | 作用 | 配置/输出 |
 | --- | --- | --- |
-| `PT-exp2-text8m` | 7,698,261 path、non-packing、250k-step PT | `qwen35_08b_bricknet_pt_exp2_text8m.yaml` / `train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_ga8_lora64_len6401_nopack` |
+| `PT-exp2-text8m` | 7,698,261 path、non-packing、250k-step PT | `qwen35_08b_bricknet_pt_exp2_text8m.yaml` / `train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack` |
 | `PT-exp2-mm-e1` | text8m 后第一轮 MM consolidation | `qwen35_08b_bricknet_pt_exp2_mm_e1.yaml` / `train_PT_exp2_mm_e1_..._ep1_...` |
 | `PT-exp2-mm-e2` | 从 e1 adapter 继续的第二轮 | `qwen35_08b_bricknet_pt_exp2_mm_e2.yaml` / `train_PT_exp2_mm_e2_..._ep1_...` |
 | `PT-exp2-mm-e3` | 从 e2 adapter 继续的第三轮 | `qwen35_08b_bricknet_pt_exp2_mm_e3.yaml` / `train_PT_exp2_mm_e3_..._ep1_...` |
@@ -74,34 +74,49 @@ path→当前 checker/mesh 的事后 replay。缺少原生成时 generator/catal
 唯一归因为 sampler、数据、catalog、量化/解码、mesh 或 checker 中的某一个。
 
 text PT 配置为 Qwen3.5-0.8B、path+EOS full loss、`packing=false`、`cutoff_len=6401`、LoRA 64/128（仅
-q/k/v/o/gate/up/down）、250k steps、micro/GA=`4/8`、LR `5e-5`、warmup 12,500、minimum-LR ratio 0.01。
+q/k/v/o/gate/up/down）、250k steps、每卡 micro=4、单/双卡 GA=`8/4`、LR `5e-5`、warmup 12,500、
+minimum-LR ratio 0.01。
 1 epoch=`240,571` steps；250k=`1.03919425` nominal epoch，第二轮 9,429 steps，名义曝光 8,000,000。
 独立 `BrickNet-PT-exp2-text-val1000` 只评估 PT loss，不属于 VAL511 实验。
 
 ## 安全启动
 
-launcher 默认只报告检查和命令：
+PT-exp2 训练支持单机单卡或双卡自适应。`--gpus 0` 使用单进程；`--gpus 0 1` 会设置两卡可见，并由 launcher
+显式注入 `FORCE_TORCHRUN=1`、`NPROC_PER_NODE=2`、`NNODES=1`。单卡时 text8m/MM/downstream GA 为
+`8/8/16`，双卡时为 `4/4/8`；每卡 BS 固定为 `4/2/1`，global batch 始终为 32/16/16，不改变 steps、
+epochs 或 LR schedule。输出目录以 `gbs32/gbs16` 命名，使两种模式共用同一 adapter 链。所有训练 YAML 显式设置
+`ddp_find_unused_parameters=false`。launcher 默认只报告检查和命令：
+
+text8m 已完成的 `tokenized_path` 由所选训练进程只读加载；只要该缓存完整且配置指纹未改变，不会
+重新运行 7,698,261 条 tokenizer。MM/downstream 首次缺少各自缓存时仍需预处理一次，之后复用同一路径。
+
+下列正式序列仍以本机双卡为默认。若只使用一张卡，将任一训练命令中的 `--gpus 0 1` 改为 `--gpus 0`；
+launcher 会自动选择单卡 GA。例如：
 
 ```bash
-python scripts/launch_bricknet_pt_exp2.py --action train --run text8m
-python scripts/launch_bricknet_pt_exp2.py --action train --run mm-e1
-python scripts/launch_bricknet_pt_exp2.py --action predict --run mm-e1
-python scripts/launch_bricknet_pt_exp2.py --action evaluate --run mm-e1
-python scripts/launch_bricknet_pt_exp2.py --action train --run mm-e2
-python scripts/launch_bricknet_pt_exp2.py --action predict --run mm-e2
-python scripts/launch_bricknet_pt_exp2.py --action evaluate --run mm-e2
-python scripts/launch_bricknet_pt_exp2.py --action train --run mm-e3
-python scripts/launch_bricknet_pt_exp2.py --action predict --run mm-e3
-python scripts/launch_bricknet_pt_exp2.py --action evaluate --run mm-e3
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action train --run text8m
+```
+
+```bash
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run text8m
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run mm-e1
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run mm-e1
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run mm-e1
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run mm-e2
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run mm-e2
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run mm-e2
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run mm-e3
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run mm-e3
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run mm-e3
 python scripts/launch_bricknet_pt_exp2.py --action select-final --run mm-e3
-python scripts/launch_bricknet_pt_exp2.py --action train --run exp4_4
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run exp4_4
 ```
 
 所有训练/推理/评测实际执行都需 `--execute`。最终 alias 与 scale gate 还需 `--approve`。launcher 检查：
 
 - corpus manifest、exact count、parse audit eligible 和 shard-only view；
 - MM manifest、逐轮 dataset 文件、逐轮 processor audit 和前置 adapter；
-- GPU 上没有其他 compute process；
+- 显式选择一张或两张训练 GPU，并报告所选卡上的 compute process；GPU 占用 blocker 当前按临时决策关闭，执行前需人工确认所选卡空闲；
 - 输出目录不存在，防止覆盖或误续训；
 - `PT-exp2` alias、10k 数据和 50k/all 人工收益 gate。
 
@@ -110,7 +125,7 @@ python scripts/launch_bricknet_pt_exp2.py --action train --run exp4_4
 
 ## 当前阻塞
 
-1. `WAIT_GPU_AVAILABLE`：GPU 上有 PID 2516380 的用户训练；不得抢占。
+1. 当前 GPU 可能存在其他用户任务；launcher 只报告、不阻断，正式执行前必须人工确认所选 GPU 均空闲。
 2. e1 等待 text8m final adapter，e2/e3 依次等待前一轮 final adapter；`exp4_4` 等待 e1/e2/e3 全指标和
    `PT-exp2` alias。
 

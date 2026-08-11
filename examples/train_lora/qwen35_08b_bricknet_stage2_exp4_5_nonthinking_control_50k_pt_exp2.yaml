@@ -37,7 +37,7 @@ video_max_pixels: 65536
 video_min_pixels: 256
 
 ### output
-output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_5_qwen35_08b_PT_exp2_stage2_nonthinking_control_50k_ep3_bs1_ga16_lora64_len16384
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_5_qwen35_08b_PT_exp2_stage2_nonthinking_control_50k_ep3_bs1_gbs16_lora64_len16384
 logging_steps: 10
 save_steps: 1000
 plot_loss: true
@@ -46,7 +46,8 @@ include_num_input_tokens_seen: true
 
 ### train
 per_device_train_batch_size: 1
-gradient_accumulation_steps: 16
+# Dual-GPU default; launcher overrides this to 16 for a single GPU.
+gradient_accumulation_steps: 8
 learning_rate: 5.0e-5
 num_train_epochs: 3.0
 lr_scheduler_type: cosine
@@ -55,4 +56,5 @@ max_grad_norm: 1.0
 optim: adamw_torch
 bf16: true
 ddp_timeout: 180000000
+ddp_find_unused_parameters: false
 seed: 42

@@ -2,7 +2,7 @@
 
 ### model
 model_name_or_path: Qwen/Qwen3.5-0.8B
-adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_ga8_lora64_len6401_nopack
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack
 trust_remote_code: true
 flash_attn: auto
 
@@ -36,7 +36,7 @@ video_max_pixels: 65536
 video_min_pixels: 256
 
 ### output
-output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e1_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e1_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400
 logging_steps: 10
 save_strategy: epoch
 plot_loss: true
@@ -45,7 +45,8 @@ include_num_input_tokens_seen: true
 
 ### train
 per_device_train_batch_size: 2
-gradient_accumulation_steps: 8
+# Dual-GPU default; launcher overrides this to 8 for a single GPU.
+gradient_accumulation_steps: 4
 learning_rate: 2.0e-5
 num_train_epochs: 1.0
 lr_scheduler_type: cosine
@@ -54,4 +55,5 @@ max_grad_norm: 1.0
 optim: adamw_torch
 bf16: true
 ddp_timeout: 180000000
+ddp_find_unused_parameters: false
 seed: 42

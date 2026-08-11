@@ -281,7 +281,7 @@ python scripts/launch_bricknet_stage3_sft.py --action train
 Stage 0 已通过；当前 dry-run 仍应被 Pilot 人工 approval、exp4_3/T1-10k paired gate、T2-10k 数据/replay/token
 和 registry 阻断，`training_started=false`。50k/all 不分配版本号或配置。
 
-## PT-exp2（数据 gate 已通过，等待训练）
+## PT-exp2 & exp4_4~exp4_6
 
 固定序列为 `PT-exp2-text8m → PT-exp2-mm-e1/e2/e3 → PT-exp2 alias → exp4_4 10k → exp4_5 50k → exp4_6 all`。
 不创建 PT-exp2 VAL511 训练或验证。详细数据 hash、配置与 gate 见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
@@ -289,48 +289,47 @@ Stage 0 已通过；当前 dry-run 仍应被 Pilot 人工 approval、exp4_3/T1-1
 MM consolidation 使用三个顺序训练配置：e1 从 text8m adapter 开始，e2 从 e1 final adapter 继续，e3 从 e2
 final adapter 继续。三轮分别使用不重叠的 replay slice（`15,617/15,586/15,667` 条），target tokens 为
 `26,285,287/26,285,922/26,284,707`，replay/MM ratio 为
-`1.0000053/1.0000294/0.9999832`。每次训练 1 epoch、BS2/GA8；e1 LR=`2e-5`，e2/e3 LR=`1e-5`。
+`1.0000053/1.0000294/0.9999832`。每次训练 1 epoch、每卡 BS2，单/双卡 GA=`8/4`（global batch 16）；
+e1 LR=`2e-5`，e2/e3 LR=`1e-5`。
 
-- text8m final：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_ga8_lora64_len6401_nopack`
-- MM e1：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e1_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400`
-- MM e2：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e2_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400`
-- MM e3：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e3_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_ga8_lora64_len6400`
+- text8m final：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack`
+- MM e1：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e1_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400`
+- MM e2：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e2_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400`
+- MM e3：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e3_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400`
 - final alias：`saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2`
 - 下游版本：`exp4_4=10k`、`exp4_5=50k`、`exp4_6=all 66,456`
 
 下面是从 text8m 训练到 all-66,456 下游评测的完整手动执行序列。命令已经预填 action、run、approval 和工作
-目录；按顺序逐条运行即可。`select-final`、`approve-scale` 是有意保留的人工决策点，运行前应先阅读上一条评测
-产生的 metrics：
+目录；按顺序逐条运行即可。所有 `train` 命令通过 `--gpus 0 1` 同时使用本机两张 RTX PRO 6000，launcher
+显式注入 `FORCE_TORCHRUN=1`、`NPROC_PER_NODE=2`、`NNODES=1`，由 DDP 每卡启动一个进程。launcher 根据
+`--gpus` 数量动态覆盖 GA：单卡 text/MM/downstream 为 `8/8/16`，双卡为 `4/4/8`，因此有效 global batch
+始终为 32/16/16，训练 steps、epochs 和 LR schedule 均不变。输出目录使用 `gbs32/gbs16`，不再绑定某个
+world size；`ddp_find_unused_parameters=false` 已显式冻结。
+已完成的 text8m `tokenized_path` 由所选进程只读复用，不会因为切换单双卡再执行 7,698,261 条 tokenizer；
+只有缓存缺失、损坏或路径/config 指纹改变时才会重新预处理。预测与评测仍用单卡。`select-final`、
+`approve-scale` 是有意保留的人工决策点，运行前应先阅读上一条评测产生的 metrics：
+
+如只使用 GPU 0，把任一训练命令的 `--gpus 0 1` 改为 `--gpus 0` 即可；launcher 会自动恢复单卡 GA，
+无需修改 YAML。例如 text8m 单卡 dry-run：
 
 ```bash
-cd /home/jiahao/task/LlamaFactory
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action train --run text8m
+```
 
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action train --run text8m --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action train --run mm-e1 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action predict --run mm-e1 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action evaluate --run mm-e1 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action train --run mm-e2 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action predict --run mm-e2 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action evaluate --run mm-e2 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action train --run mm-e3 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action predict --run mm-e3 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action evaluate --run mm-e3 --execute
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run text8m --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run mm-e1 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run mm-e1 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run mm-e1 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run mm-e2 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run mm-e2 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run mm-e2 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run mm-e3 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run mm-e3 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run mm-e3 --execute
 python scripts/launch_bricknet_pt_exp2.py --action select-final --run mm-e3 --execute --approve
-
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action train --run exp4_4 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action predict --run exp4_4 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action evaluate --run exp4_4 --execute
-python scripts/launch_bricknet_pt_exp2.py --action approve-scale --run exp4_4 --execute --approve
-python scripts/launch_bricknet_pt_exp2.py --action materialize --run exp4_5 --execute
-
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action train --run exp4_5 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action predict --run exp4_5 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action evaluate --run exp4_5 --execute
-python scripts/launch_bricknet_pt_exp2.py --action approve-scale --run exp4_5 --execute --approve
-
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action train --run exp4_6 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action predict --run exp4_6 --execute
-CUDA_VISIBLE_DEVICES=0 python scripts/launch_bricknet_pt_exp2.py --action evaluate --run exp4_6 --execute
 ```
 
 用户已冻结官方 first-round + cross-pool exact-dedup 的 7,698,261 条为本机规范，8,092,423 仅保留为发布
@@ -342,4 +341,29 @@ non-packing、`cutoff_len=6401`、250k steps、global batch 32。
 18 个来自 PT 首轮、2 个来自 SFT 首轮，含 4 个完整 component。论文与官方 sampler 说明发布 path 在采样阶段
 做 collision filtering，官方 `train.py` 在训练加载阶段不再次 parse/collision 筛除。依用户决策，当前
 `collision_findings_block_training=false`、`audit.eligible=true`，不删除样本；31-shard `text8m_train` 视图已创建。
-当前 launcher 对 text8m 只剩 `WAIT_GPU_AVAILABLE`，尚未启动任何 PT-exp2 训练。
+当前 launcher 会报告所选 GPU 上的进程，但按此前临时决策不以 GPU 占用作为 blocker；执行前必须人工确认
+GPU 0/1 均无其他用户任务。尚未启动任何 PT-exp2 训练。
+
+### exp4_4
+```bash
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run exp4_4 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run exp4_4 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run exp4_4 --execute
+python scripts/launch_bricknet_pt_exp2.py --action approve-scale --run exp4_4 --execute --approve
+python scripts/launch_bricknet_pt_exp2.py --action materialize --run exp4_5 --execute
+```
+
+### exp4_5
+```bash
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run exp4_5 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run exp4_5 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run exp4_5 --execute
+python scripts/launch_bricknet_pt_exp2.py --action approve-scale --run exp4_5 --execute --approve
+```
+
+### exp4_6
+```bash
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run exp4_6 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run exp4_6 --execute
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run exp4_6 --execute
+```
