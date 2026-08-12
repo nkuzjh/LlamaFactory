@@ -31,6 +31,16 @@ STAGE0_ADAPTER = (
     / "train_PT_exp1_qwen35_08b_bricknet_text270k_mmpt135k_ep1_bs2_ga8_lora64"
 )
 TOKEN_REPORT = REASONING_ROOT / "reports/token_audit/BrickNet-MM-Reasoning_token_audit_report.json"
+STAGE2_V2_ROOT = REASONING_ROOT / "stage2_v2"
+STAGE2_V2_REPORT = STAGE2_V2_ROOT / "reports/Stage2-V2-Lean-State_report.json"
+STAGE2_V2_TRAIN_TOKEN_REPORT = (
+    STAGE2_V2_ROOT
+    / "reports/token_audit/train10k/BrickNet-MM-Reasoning_token_audit_report.json"
+)
+STAGE2_V2_EVAL_TOKEN_REPORT = (
+    STAGE2_V2_ROOT
+    / "reports/token_audit/eval_val512/BrickNet-MM-Reasoning_token_audit_report.json"
+)
 VAL_REPORT = REASONING_ROOT / "validation/reports/BrickNet-Stage2-VAL511-Train-VAL512-Eval_report.json"
 VAL_TRAIN_TOKEN_REPORT = (
     REASONING_ROOT / "validation/reports/token_audit/train_val511/BrickNet-MM-Reasoning_token_audit_report.json"
@@ -120,6 +130,26 @@ EXPERIMENTS = {
         selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
         expected_train_count=10_000,
     ),
+    ("thinking-hard-v2-lean-state", "10k"): Experiment(
+        experiment_id="exp4_3_1",
+        variant="thinking-hard-v2-lean-state",
+        scale="10k",
+        dataset="BrickNet-Stage2-ThinkingHard-V2-LeanState-10k",
+        train_file=ROOT
+        / "data/bricknet_stage2_v2/10k/BrickNet-Stage2-ThinkingHard-V2-LeanState.jsonl",
+        eval_file=STAGE2_V2_ROOT
+        / "validation/datasets/BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_3_1_thinking_hard_v2_lean_state_10k.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_3_1_thinking_hard_v2_lean_state_predict.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_3_1_qwen35_08b_mixedpt_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_ga16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_3_1_stage2_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
 }
 
 
@@ -128,7 +158,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action", choices=("train", "predict"), required=True)
     parser.add_argument(
         "--variant",
-        choices=("nonthinking-control", "thinking-hard"),
+        choices=(
+            "nonthinking-control",
+            "thinking-hard",
+            "thinking-hard-v2-lean-state",
+        ),
         required=True,
     )
     parser.add_argument("--scale", choices=("overfit511", "10k"), required=True)
@@ -212,7 +246,7 @@ def _postprocess_command(experiment: Experiment) -> list[str]:
         str(BRICKNET_PYTHON),
         str(TRACE_EXTRACTOR),
         "--variant",
-        experiment.variant,
+        _trace_variant(experiment),
         "--label-format",
         "path",
         "--input",
@@ -222,6 +256,13 @@ def _postprocess_command(experiment: Experiment) -> list[str]:
         "--report",
         str(experiment.predict_output / "trace_extraction_report.json"),
     ]
+
+
+def _trace_variant(experiment: Experiment) -> str:
+    """Map experiment labels to the extractor's stable trace grammar."""
+    if experiment.variant == "thinking-hard-v2-lean-state":
+        return "thinking-hard"
+    return experiment.variant
 
 
 def _check_val_gates(args: argparse.Namespace, checks: dict[str, Any], blockers: list[str]) -> None:
@@ -290,6 +331,104 @@ def _check_10k_materialization(experiment: Experiment, checks: dict[str, Any], b
         blockers.append("10k dataset hash differs from its materialization report")
 
 
+def _check_stage2_v2_artifacts(
+    args: argparse.Namespace,
+    experiment: Experiment,
+    checks: dict[str, Any],
+    blockers: list[str],
+) -> None:
+    """Gate V2 data against its independent construction and processor reports."""
+    report = _load_json(STAGE2_V2_REPORT)
+    checks["stage2_v2_report"] = str(STAGE2_V2_REPORT)
+    checks["stage2_v2_training_eligible"] = bool(
+        report
+        and report.get("training_eligible") is True
+        and report.get("count") == experiment.expected_train_count
+    )
+    reported_train_file = report.get("train_file") if report else None
+    checks["stage2_v2_train_path_matches"] = bool(
+        isinstance(reported_train_file, str)
+        and Path(reported_train_file).resolve() == experiment.train_file.resolve()
+    )
+    checks["stage2_v2_train_hash_matches"] = bool(
+        report
+        and experiment.train_file.is_file()
+        and report.get("train_sha256") == _sha256(experiment.train_file)
+    )
+    if not checks["stage2_v2_training_eligible"]:
+        blockers.append("Stage-2 V2 annotation report is not training_eligible for 10k")
+    if not checks["stage2_v2_train_path_matches"]:
+        blockers.append("Stage-2 V2 annotation report points to another training dataset")
+    if not checks["stage2_v2_train_hash_matches"]:
+        blockers.append("Stage-2 V2 training dataset hash differs from its annotation report")
+
+    if args.action == "predict":
+        val512 = report.get("val512", {}) if report else {}
+        reported_eval_file = val512.get("file") if isinstance(val512, dict) else None
+        checks["stage2_v2_val512_prediction_eligible"] = bool(
+            isinstance(val512, dict)
+            and val512.get("prediction_eligible") is True
+            and val512.get("count") == 512
+        )
+        checks["stage2_v2_val512_path_matches"] = bool(
+            isinstance(reported_eval_file, str)
+            and Path(reported_eval_file).resolve() == experiment.eval_file.resolve()
+        )
+        checks["stage2_v2_val512_hash_matches"] = bool(
+            isinstance(val512, dict)
+            and experiment.eval_file.is_file()
+            and val512.get("sha256") == _sha256(experiment.eval_file)
+        )
+        if not checks["stage2_v2_val512_prediction_eligible"]:
+            blockers.append("Stage-2 V2 VAL512 report is not prediction_eligible")
+        if not checks["stage2_v2_val512_path_matches"]:
+            blockers.append("Stage-2 V2 report points to another VAL512 dataset")
+        if not checks["stage2_v2_val512_hash_matches"]:
+            blockers.append("Stage-2 V2 VAL512 dataset hash differs from its annotation report")
+
+    token_report_path = (
+        STAGE2_V2_TRAIN_TOKEN_REPORT
+        if args.action == "train"
+        else STAGE2_V2_EVAL_TOKEN_REPORT
+    )
+    token_report = _load_json(token_report_path)
+    token_dataset_keys = (
+        ("Thinking-Hard-V2-Lean-State",)
+        if args.action == "train"
+        else (
+            "Thinking-Hard-V2-Lean-State-VAL512",
+            "Thinking-Hard-V2-Lean-State",
+        )
+    )
+    token_dataset: dict[str, Any] = {}
+    for key in token_dataset_keys:
+        candidate = token_report.get("datasets", {}).get(key, {}) if token_report else {}
+        if isinstance(candidate, dict) and candidate:
+            token_dataset = candidate
+            break
+    audited_file = experiment.train_file if args.action == "train" else experiment.eval_file
+    audited_count = experiment.expected_train_count if args.action == "train" else 512
+    token_source = token_dataset.get("path")
+    checks["stage2_v2_token_report"] = str(token_report_path)
+    checks["stage2_v2_token_gate"] = bool(
+        token_report
+        and token_report.get("training_eligible") is True
+        and token_report.get("zero_errors") is True
+        and token_report.get("zero_truncation") is True
+    )
+    checks["stage2_v2_token_dataset_matches"] = bool(
+        isinstance(token_source, str)
+        and Path(token_source).resolve() == audited_file.resolve()
+        and token_dataset.get("count") == audited_count
+        and audited_file.is_file()
+        and token_dataset.get("sha256") == _sha256(audited_file)
+    )
+    if not checks["stage2_v2_token_gate"]:
+        blockers.append("Stage-2 V2 processor token gate is incomplete")
+    if not checks["stage2_v2_token_dataset_matches"]:
+        blockers.append("Stage-2 V2 processor audit does not match the selected dataset")
+
+
 def main() -> None:
     args = parse_args()
     experiment = EXPERIMENTS[(args.variant, args.scale)]
@@ -304,23 +443,32 @@ def main() -> None:
     if not checks["stage0_final_adapter_ready"]:
         blockers.append("WAIT_STAGE0_FINAL: mixed PT-exp1 root lacks final adapter_config/adapter_model")
 
-    token_report = _load_json(TOKEN_REPORT)
-    checks["stage1_token_report"] = str(TOKEN_REPORT)
-    checks["stage1_training_eligible"] = bool(token_report and token_report.get("training_eligible") is True)
-    if not checks["stage1_training_eligible"]:
-        blockers.append("Stage-1 full-pool token gate is not training_eligible=true")
-    token_dataset_key = "NonThinking-Control" if experiment.variant == "nonthinking-control" else "Thinking-Hard"
-    token_dataset = token_report.get("datasets", {}).get(token_dataset_key, {}) if token_report else {}
-    token_source = Path(token_dataset.get("path", "")) if isinstance(token_dataset, dict) else None
-    checks["stage1_source_dataset"] = str(token_source) if token_source else None
-    checks["stage1_source_hash_matches_token_report"] = bool(
-        token_source
-        and token_source.is_file()
-        and token_dataset.get("count") == 66_456
-        and token_dataset.get("sha256") == _sha256(token_source)
-    )
-    if not checks["stage1_source_hash_matches_token_report"]:
-        blockers.append("Stage-1 source dataset differs from the full-pool token report")
+    if experiment.variant == "thinking-hard-v2-lean-state":
+        _check_stage2_v2_artifacts(args, experiment, checks, blockers)
+    else:
+        token_report = _load_json(TOKEN_REPORT)
+        checks["stage1_token_report"] = str(TOKEN_REPORT)
+        checks["stage1_training_eligible"] = bool(
+            token_report and token_report.get("training_eligible") is True
+        )
+        if not checks["stage1_training_eligible"]:
+            blockers.append("Stage-1 full-pool token gate is not training_eligible=true")
+        token_dataset_key = (
+            "NonThinking-Control"
+            if experiment.variant == "nonthinking-control"
+            else "Thinking-Hard"
+        )
+        token_dataset = token_report.get("datasets", {}).get(token_dataset_key, {}) if token_report else {}
+        token_source = Path(token_dataset.get("path", "")) if isinstance(token_dataset, dict) else None
+        checks["stage1_source_dataset"] = str(token_source) if token_source else None
+        checks["stage1_source_hash_matches_token_report"] = bool(
+            token_source
+            and token_source.is_file()
+            and token_dataset.get("count") == 66_456
+            and token_dataset.get("sha256") == _sha256(token_source)
+        )
+        if not checks["stage1_source_hash_matches_token_report"]:
+            blockers.append("Stage-1 source dataset differs from the full-pool token report")
 
     _check_val_gates(args, checks, blockers)
 
@@ -347,9 +495,13 @@ def main() -> None:
         experiment.dataset
         if args.action == "train"
         else (
-            "BrickNet-Stage2-NonThinking-Control-VAL512-Eval"
-            if args.variant == "nonthinking-control"
-            else "BrickNet-Stage2-ThinkingHard-VAL512-Eval"
+            "BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval"
+            if args.variant == "thinking-hard-v2-lean-state"
+            else (
+                "BrickNet-Stage2-NonThinking-Control-VAL512-Eval"
+                if args.variant == "nonthinking-control"
+                else "BrickNet-Stage2-ThinkingHard-VAL512-Eval"
+            )
         )
     )
     registry_entry = registry.get(registry_key) if registry else None
@@ -371,7 +523,7 @@ def main() -> None:
     elif not checks["selection_manifest_count_matches"]:
         blockers.append("selection manifest row count differs from the contract")
 
-    if args.scale == "10k":
+    if args.scale == "10k" and experiment.variant != "thinking-hard-v2-lean-state":
         _check_10k_materialization(experiment, checks, blockers)
 
     if args.action == "predict":
