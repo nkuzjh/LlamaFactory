@@ -257,37 +257,18 @@ dry-run；已有完整结果时 `--execute` 安全复用并退出，只有显式
 
 ### exp4_3_1 — Stage2 V2 Thinking-Hard Lean-State 10k
 
-状态：独立自动标注实现、10k/VAL512 dataset registry、训练/推理 YAML、hash/token gate 和统一 evaluator 已准备；
-正式数据构造、真实 processor audit、训练、推理和评测尚未执行。该实验只运行 10k，不开放 overfit511/50k/all。
+状态：正式 full pool 66,456、train 10,000、VAL512 已构造；两份真实 processor audit 均为 0 error、0 truncation，
+train dry-run 已返回 `ready=true, blockers=[]`。训练、推理和评测尚未执行。该实验只运行 10k，不开放
+overfit511/50k/all。
 
-以下为已预填路径和版本名的完整手动执行序列。严格按顺序运行；两个 dry-run 必须在相应 execute 前通过。
+数据 SHA-256：train=`b0ee6b1046aaef6290ed7bb4d1b632c0260fbbd65048619c415e8669f9a6bc95`，
+VAL512=`f102e74a2462e38af0cfcbcd9fd012772c7b3c0bc6fc44f2746430d57eec1009`；10k ordered-ID SHA-256 与
+exp4_2/exp4_3 同为 `2d87ff4c3b918f748dde48721cbec66595ccc17317cf728f77e30efc04230dea`。
+
+以下是当前状态可直接执行的完整剩余序列。严格按顺序运行；两个 dry-run 必须在相应 execute 前通过。
 
 ```bash
-cd /home/jiahao/task/BrickNet
-
-PYTHONPATH=src:data_preprocess \
-/home/jiahao/miniconda3/envs/bricknet/bin/python \
-  data_preprocess/build_bricknet_stage2_v2_lean_state.py build
-
 cd /home/jiahao/task/LlamaFactory
-
-conda run -n llamafactory --no-capture-output python \
-  scripts/audit_bricknet_reasoning_tokens.py \
-  --stage 2 \
-  --audit-purpose stage2_v2_lean_state_train10k \
-  --dataset Thinking-Hard-V2-Lean-State=/home/jiahao/task/LlamaFactory/data/bricknet_stage2_v2/10k/BrickNet-Stage2-ThinkingHard-V2-LeanState.jsonl \
-  --bricknet-root /home/jiahao/task/BrickNet \
-  --output-dir /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/stage2_v2/reports/token_audit/train10k \
-  --cutoff-len 16384 --workers 2 --chunksize 8
-
-conda run -n llamafactory --no-capture-output python \
-  scripts/audit_bricknet_reasoning_tokens.py \
-  --stage 2 \
-  --audit-purpose stage2_v2_lean_state_val512 \
-  --dataset Thinking-Hard-V2-Lean-State-VAL512=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/stage2_v2/validation/datasets/BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval.jsonl \
-  --bricknet-root /home/jiahao/task/BrickNet \
-  --output-dir /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/stage2_v2/reports/token_audit/eval_val512 \
-  --cutoff-len 16384 --workers 2 --chunksize 8
 
 python scripts/launch_bricknet_stage2_sft.py \
   --action train --variant thinking-hard-v2-lean-state --scale 10k \
@@ -312,8 +293,8 @@ python scripts/evaluate_bricknet_stage2.py --experiment exp4_3_1 --execute
 `saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_3_1_qwen35_08b_mixedpt_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_ga16_lora64_len16384`；
 预测输出固定为
 `saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_3_1_stage2_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20`。
-构造器默认拒绝覆盖既有数据；确认要重建时只给第一条 build 命令增加 `--overwrite`。token audit 同样不得拿旧
-Thinking-Hard v1 报告代替。
+构造和 token audit 的可复现命令、报告路径与完整 schema 见 BrickNet 的
+`Stage 2 V2 Lean-State Auto-Annotation.md`；当前不要重建或拿旧 Thinking-Hard v1 报告代替。
 
 
 

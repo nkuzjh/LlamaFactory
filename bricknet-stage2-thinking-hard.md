@@ -3,7 +3,7 @@
 状态（2026-08-13 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3` 四个训练和 VAL512
 512/512 推理和全指标均完成。paired 结果显示 Thinking-Hard 只改善 clean/collision-prefix，parsable、dense、
 strict success 和图文指标均低于 Control；T1-10k 人工推广 gate 未批准。新增的 `exp4_3_1` 是封顶 10k、独立数据链的
-Lean-State 诊断；数据构造、真实 processor audit、训练、推理和评测尚未执行。
+Lean-State 诊断；正式数据和两份真实 processor audit 已通过，训练 dry-run ready；训练、推理和评测尚未执行。
 
 原 Stage 2 比较严格同 ID 的两组数据，新增 V2 仍复用相同 10k ID：
 
@@ -290,5 +290,6 @@ python scripts/evaluate_bricknet_stage2.py --experiment exp4_3_1
 python scripts/evaluate_bricknet_stage2.py --experiment exp4_3_1 --execute
 ```
 
-当前没有 V2 正式数据、token report 或 adapter，因此 dry-run 报告相应 blocker 是预期行为；不得删除 gate 或用
-旧 T1 token report 代替。该实验只运行 10k，不添加 overfit511、50k 或 all 配置。
+当前 V2 data/report 和两份 token report 已通过，train dry-run 为 `ready=true, blockers=[]`；predict 在训练前只应
+报告 `WAIT_STAGE2_TRAIN`。不得删除该 gate 或用旧 T1 token report 代替。该实验只运行 10k，不添加
+overfit511、50k 或 all 配置。
