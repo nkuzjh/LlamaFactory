@@ -259,9 +259,7 @@ def _postprocess_command(experiment: Experiment) -> list[str]:
 
 
 def _trace_variant(experiment: Experiment) -> str:
-    """Map experiment labels to the extractor's stable trace grammar."""
-    if experiment.variant == "thinking-hard-v2-lean-state":
-        return "thinking-hard"
+    """Return the strict extractor contract for this experiment."""
     return experiment.variant
 
 

@@ -1,15 +1,18 @@
 # BrickNet Stage 2 Thinking-Hard SFT Runbook
 
-状态（2026-08-11 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3` 四个训练和 VAL512
+状态（2026-08-13 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3` 四个训练和 VAL512
 512/512 推理和全指标均完成。paired 结果显示 Thinking-Hard 只改善 clean/collision-prefix，parsable、dense、
-strict success 和图文指标均低于 Control；T1-10k 人工推广 gate 尚未批准。
+strict success 和图文指标均低于 Control；T1-10k 人工推广 gate 未批准。新增的 `exp4_3_1` 是封顶 10k、独立数据链的
+Lean-State 诊断；数据构造、真实 processor audit、训练、推理和评测尚未执行。
 
-本阶段比较严格同 ID 的两组数据：
+原 Stage 2 比较严格同 ID 的两组数据，新增 V2 仍复用相同 10k ID：
 
 - `nonthinking-control` / `NonThinking-Control`：assistant 为原始 BrickNet path；
 - `thinking-hard` / `Thinking-Hard`：assistant 为显式 `<think>/<action>` 完整 trace。
+- `thinking-hard-v2-lean-state` / `Thinking-Hard-V2-Lean-State`：assistant 为删除答案复述和文字 checks 的短
+  state-before `<think>/<action>` trace，只用于 `exp4_3_1` 10k。
 
-两组都使用 `qwen3_5_nothink`、`enable_thinking=false`、`cutoff_len=16384`、
+三组都使用 `qwen3_5_nothink`、`enable_thinking=false`、`cutoff_len=16384`、
 `train_on_prompt=false`、`packing=false`。显式 `<think>` 是普通 assistant 监督文本，不启用 Qwen 原生 thinking。
 
 ## 1. 实验版本与配置
@@ -22,6 +25,7 @@ strict success 和图文指标均低于 Control；T1-10k 人工推广 gate 尚�
 | `exp4_1` | Thinking-Hard VAL511 overfit | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_1_thinking_hard_val511.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_1_thinking_hard_predict.yaml` |
 | `exp4_2` | NonThinking-Control 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_predict.yaml` |
 | `exp4_3` | Thinking-Hard 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_thinking_hard_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_thinking_hard_predict.yaml` |
+| `exp4_3_1` | Thinking-Hard-V2-Lean-State 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_1_thinking_hard_v2_lean_state_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_1_thinking_hard_v2_lean_state_predict.yaml` |
 
 统一安全启动器为 `scripts/launch_bricknet_stage2_sft.py`。默认只执行 dry-run；实际执行必须同时传入：
 
@@ -221,6 +225,7 @@ parse、inventory、collision、pose、语义指标、token、延迟和 GPU time
 | --- | --- | --- | --- |
 | `nonthinking-control` | 原生 path | 只规范化末尾换行，path 内容不变 | canonical path |
 | `thinking-hard` | `<think>/<action>` trace | strict extractor 提取的 path 或合法前缀 | canonical path |
+| `thinking-hard-v2-lean-state` | Lean-State `<think>/<action>` trace | state-machine 提取 path，并逐行重算 V2 state 检查内部一致性 | canonical path |
 
 launcher 会根据 experiment 自动传入正确的 `--variant`。手工调用 extractor 时必须显式选择 variant。non-thinking
 报告中的 `trace_format_rate=100%` 只表示无需解析 trace，不代表结构 100% 合法；两类实验的 Connectivity/Clean
@@ -242,3 +247,48 @@ launcher 会根据 experiment 自动传入正确的 `--variant`。手工调用 e
 相对 exp4_2，exp4_3 的 clean `+1.56 pp`、collision-prefix `+0.0133`，但 parsable `-4.30 pp`、dense reward
 `-0.00765`、strict success `-0.59 pp`，PE/SigLIP2/VQA 也较低，因此没有总体优势。Stage 2 原路线的 50k/all
 继续暂停；新 PT-exp2 分支另从 `exp4_4` 10k 开始，见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
+
+## 6. exp4_3_1 / Stage2 V2 Lean-State
+
+`exp4_3_1` 不重写 T1 v1。每步 `<think>` 只有一行由输入 inventory 和已执行 prefix 确定的 state-before；
+`<action>` 保留原 reference。完整 schema、构造路径和研究边界见
+[BrickNet Stage 2 V2 说明](../BrickNet/BrickNet-MM%20Agentic%20LEGO%20Planner/Stage%202%20V2%20Lean-State%20Auto-Annotation.md)。
+
+LlamaFactory registry 使用：
+
+```text
+BrickNet-Stage2-ThinkingHard-V2-LeanState-10k
+BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval
+```
+
+启动器对 V2 使用独立构造报告和 train/VAL512 两份真实 processor token report；同时核对 path、count 和 SHA-256。
+它不接受仅凭文件存在放行。V2 strict extractor 沿用同一 `<think>/<action>` state-machine，并从完整生成 path
+重算每步 inventory、node range 和 connector candidates；只有逐行一致才计入 trace-format valid。统一 evaluator
+的实验 ID 为 `exp4_3_1`。
+
+数据构造和两次 token audit 完成后，按以下顺序运行：
+
+```bash
+cd /home/jiahao/task/LlamaFactory
+
+python scripts/launch_bricknet_stage2_sft.py \
+  --action train --variant thinking-hard-v2-lean-state --scale 10k \
+  --overfit-gate-approved
+
+python scripts/launch_bricknet_stage2_sft.py \
+  --action train --variant thinking-hard-v2-lean-state --scale 10k \
+  --execute --stage0-gate-approved --overfit-gate-approved
+
+python scripts/launch_bricknet_stage2_sft.py \
+  --action predict --variant thinking-hard-v2-lean-state --scale 10k
+
+python scripts/launch_bricknet_stage2_sft.py \
+  --action predict --variant thinking-hard-v2-lean-state --scale 10k \
+  --execute --stage0-gate-approved
+
+python scripts/evaluate_bricknet_stage2.py --experiment exp4_3_1
+python scripts/evaluate_bricknet_stage2.py --experiment exp4_3_1 --execute
+```
+
+当前没有 V2 正式数据、token report 或 adapter，因此 dry-run 报告相应 blocker 是预期行为；不得删除 gate 或用
+旧 T1 token report 代替。该实验只运行 10k，不添加 overfit511、50k 或 all 配置。
