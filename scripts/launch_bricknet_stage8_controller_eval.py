@@ -10,6 +10,8 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from llamafactory.extras.stage8_gate import resolve_stage5_report_binding, resolve_stage8_eval_mode
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BRICKNET_ROOT = Path("/home/jiahao/task/BrickNet")
@@ -28,6 +30,9 @@ STAGE8_ADAPTERS = {
     "R1-C": SAVE_ROOT / "train_stage8_r1_c_act_correction_10k_token_matched_lora64_len16384",
     "R1-B": SAVE_ROOT / "train_stage8_r1_b_act_rollback_10k_token_matched_lora64_len16384",
 }
+STAGE8_BUILD_REPORT = (
+    BRICKNET_ROOT / "outputs_preprocess/BrickNet-MM-Act-SFT/10k/BrickNet-Stage8-R1-report.json"
+)
 
 
 def adapter_ready(path: Path) -> bool:
@@ -39,7 +44,12 @@ def adapter_ready(path: Path) -> bool:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", choices=STAGE8_ADAPTERS, required=True)
-    parser.add_argument("--mode", choices=("a0-act-feedback", "a1-feedback-search"), default="a1-feedback-search")
+    parser.add_argument("--mode", choices=("a0-act-feedback", "a1-feedback-search"))
+    parser.add_argument(
+        "--ablation",
+        action="store_true",
+        help="Required when --mode differs from the frozen main mode for the selected run.",
+    )
     parser.add_argument("--limit", type=int)
     parser.add_argument("--execute", action="store_true")
     return parser.parse_args()
@@ -49,7 +59,12 @@ def main() -> None:
     args = parse_args()
     if args.limit is not None and args.limit <= 0:
         raise SystemExit("--limit must be positive")
-    output_root = SAVE_ROOT / f"eval_stage8_{args.run.lower().replace('-', '_')}_val512_stage7_{args.mode}"
+    try:
+        mode, mode_mismatch = resolve_stage8_eval_mode(args.run, args.mode, ablation=args.ablation)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    protocol = "ablation_mode_mismatch" if mode_mismatch else "main_matched_mode"
+    output_root = SAVE_ROOT / f"eval_stage8_{args.run.lower().replace('-', '_')}_val512_stage7_{mode}_{protocol}"
     audit_output = output_root / "controller_audit.jsonl"
     predictions_output = output_root / "predictions.jsonl"
     adapters = [PT_EXP1, EXP4_2, STAGE8_ADAPTERS[args.run]]
@@ -67,7 +82,7 @@ def main() -> None:
         "--media-dir",
         str(BRICKNET_ROOT),
         "--mode",
-        args.mode,
+        mode,
         "--backend",
         "hf",
         "--prompt-protocol",
@@ -75,6 +90,20 @@ def main() -> None:
         "--seed",
         "42",
     ]
+    build_report = None
+    stage5_binding = None
+    if STAGE8_BUILD_REPORT.is_file():
+        try:
+            build_report = json.loads(STAGE8_BUILD_REPORT.read_text(encoding="utf-8"))
+            stage5_binding = resolve_stage5_report_binding(build_report)
+        except (json.JSONDecodeError, ValueError) as exc:
+            stage5_error = str(exc)
+        else:
+            stage5_error = None
+    else:
+        stage5_error = f"Stage-8 build report is missing: {STAGE8_BUILD_REPORT}"
+    if stage5_binding:
+        command.extend(("--stage5-report", stage5_binding["path"]))
     for adapter in adapters:
         command.extend(("--adapter", str(adapter)))
     if args.limit is not None:
@@ -83,6 +112,8 @@ def main() -> None:
     blockers = []
     if not BRICKNET_PYTHON.is_file() or not CONTROLLER.is_file() or not VAL512.is_file():
         blockers.append("WAIT_STAGE7_CONTROLLER_RUNTIME_OR_VAL512")
+    if stage5_binding is None:
+        blockers.append("WAIT_FIXED_STAGE5_REPORT_PATH_AND_HASH_BINDING")
     missing_adapters = [str(adapter) for adapter in adapters if not adapter_ready(adapter)]
     if missing_adapters:
         blockers.append("WAIT_PT_EXP1_EXP4_2_AND_STAGE8_ADAPTER_CHAIN")
@@ -91,7 +122,13 @@ def main() -> None:
     result = {
         "evaluation": "BrickNet VAL512 Stage7 controller",
         "run": args.run,
-        "mode": args.mode,
+        "mode": mode,
+        "main_mode": not mode_mismatch,
+        "ablation_requested": args.ablation,
+        "evaluation_protocol": protocol,
+        "stage8_build_report": str(STAGE8_BUILD_REPORT),
+        "stage5_report_binding": stage5_binding,
+        "stage5_report_error": stage5_error,
         "adapter_chain": [str(adapter) for adapter in adapters],
         "command": shlex.join(command),
         "blockers": blockers,
@@ -104,6 +141,10 @@ def main() -> None:
     if blockers:
         raise SystemExit(2)
     output_root.mkdir(parents=True, exist_ok=False)
+    manifest_path = output_root / "launch_manifest.json"
+    temporary = manifest_path.with_name(manifest_path.name + ".tmp")
+    temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(manifest_path)
     environment = dict(os.environ)
     subprocess.run(command, cwd=BRICKNET_ROOT, env=environment, check=True)
 

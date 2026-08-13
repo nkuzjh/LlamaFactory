@@ -27,6 +27,11 @@ STAGE8_TOKEN_MIX_TARGETS = {
     "R1-C": {"R1-S": Fraction(4, 5), "R1-C": Fraction(1, 5)},
     "R1-B": {"R1-S": Fraction(7, 10), "R1-C": Fraction(1, 5), "R1-B": Fraction(1, 10)},
 }
+STAGE8_MAIN_EVAL_MODES = {
+    "R1-S": "a0-act-feedback",
+    "R1-C": "a0-act-feedback",
+    "R1-B": "a1-feedback-search",
+}
 
 
 def adapter_artifact_sha256(path: Path) -> str:
@@ -41,6 +46,14 @@ def adapter_artifact_sha256(path: Path) -> str:
         with artifact.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
+    return digest.hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
     return digest.hexdigest()
 
 
@@ -126,6 +139,36 @@ def evaluate_stage8_build_report(
         "build_report_gate_passed": not blockers,
         "build_report_blockers": blockers,
     }
+
+
+def resolve_stage8_eval_mode(run: str, requested_mode: str | None, *, ablation: bool) -> tuple[str, bool]:
+    """Freeze main evaluation modes and require an explicit ablation marker for mismatches."""
+    main_mode = STAGE8_MAIN_EVAL_MODES[run]
+    mode = requested_mode or main_mode
+    mismatch = mode != main_mode
+    if mismatch and not ablation:
+        raise ValueError(f"{run} main evaluation requires {main_mode}; pass --ablation for {mode}")
+    return mode, mismatch
+
+
+def resolve_stage5_report_binding(build_report: dict[str, Any]) -> dict[str, str]:
+    """Resolve the immutable Stage-5 report recorded by the formal Stage-8 build."""
+    if build_report.get("schema_version") != "bricknet-stage8-act-sft-build-report-v1":
+        raise ValueError("Stage-8 build report schema mismatch")
+    stage5 = build_report.get("stage5_replay_gate")
+    if not isinstance(stage5, dict) or stage5.get("stage5_replay_gate_passed") is not True:
+        raise ValueError("Stage-8 build did not pass the Stage-5 replay gate")
+    path_value = stage5.get("path")
+    expected_sha256 = stage5.get("sha256")
+    if not isinstance(path_value, str) or not path_value or not isinstance(expected_sha256, str):
+        raise ValueError("Stage-8 build report lacks the fixed Stage-5 report path/hash")
+    path = Path(path_value).resolve()
+    if not path.is_file():
+        raise ValueError(f"fixed Stage-5 report is missing: {path}")
+    actual_sha256 = file_sha256(path)
+    if actual_sha256 != expected_sha256:
+        raise ValueError("fixed Stage-5 report hash differs from the Stage-8 build binding")
+    return {"path": str(path), "sha256": actual_sha256}
 
 
 def evaluate_initialization_gate(

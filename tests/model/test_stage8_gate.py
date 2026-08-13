@@ -6,6 +6,9 @@ from llamafactory.extras.stage8_gate import (
     evaluate_initialization_gate,
     evaluate_stage8_build_report,
     evaluate_supervised_token_mix,
+    file_sha256,
+    resolve_stage5_report_binding,
+    resolve_stage8_eval_mode,
 )
 
 
@@ -117,3 +120,40 @@ def test_stage8_build_report_blocks_smoke_override_and_dataset_drift(tmp_path):
     assert "STAGE5_REPLAY_GATE_NOT_PASSED" in result["build_report_blockers"]
     assert "BUILD_REPORT_VARIANT_SHA256_MISMATCH" in result["build_report_blockers"]
     assert "BUILD_REPORT_WINDOW_MATERIALIZATION_MISMATCH" in result["build_report_blockers"]
+
+
+def test_stage8_main_eval_modes_and_explicit_ablation_gate():
+    assert resolve_stage8_eval_mode("R1-S", None, ablation=False) == ("a0-act-feedback", False)
+    assert resolve_stage8_eval_mode("R1-C", None, ablation=False) == ("a0-act-feedback", False)
+    assert resolve_stage8_eval_mode("R1-B", None, ablation=False) == ("a1-feedback-search", False)
+    try:
+        resolve_stage8_eval_mode("R1-B", "a0-act-feedback", ablation=False)
+    except ValueError as exc:
+        assert "pass --ablation" in str(exc)
+    else:
+        raise AssertionError("mode mismatch was not blocked")
+    assert resolve_stage8_eval_mode("R1-B", "a0-act-feedback", ablation=True) == ("a0-act-feedback", True)
+
+
+def test_stage8_eval_resolves_fixed_stage5_report_and_rejects_hash_drift(tmp_path):
+    stage5_report = tmp_path / "stage5.json"
+    stage5_report.write_text('{"stage5_replay_gate_passed": true}\n')
+    build = {
+        "schema_version": "bricknet-stage8-act-sft-build-report-v1",
+        "stage5_replay_gate": {
+            "path": str(stage5_report),
+            "sha256": file_sha256(stage5_report),
+            "stage5_replay_gate_passed": True,
+        },
+    }
+    assert resolve_stage5_report_binding(build) == {
+        "path": str(stage5_report.resolve()),
+        "sha256": file_sha256(stage5_report),
+    }
+    stage5_report.write_text('{"tampered": true}\n')
+    try:
+        resolve_stage5_report_binding(build)
+    except ValueError as exc:
+        assert "hash differs" in str(exc)
+    else:
+        raise AssertionError("Stage-5 report hash drift was not blocked")
