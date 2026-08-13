@@ -409,3 +409,212 @@ python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run exp4_6
 python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run exp4_6 --execute
 python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run exp4_6 --execute
 ```
+
+## exp4_2 直通 Stage5–8（action-only）
+
+固定链：`Qwen/Qwen3.5-0.8B + PT-exp1 + exp4_2`。以下命令已预填当前数据、adapter、VAL512 和报告路径；
+严格按顺序执行。所有训练和 HF VAL 命令都需 GPU，本次实现没有替用户启动。Stage5 full report 未通过前，后续 launcher
+会 fail closed，这是预期行为。
+
+```bash
+cd /home/jiahao/task/BrickNet
+
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/audit_bricknet_assembly_env.py \
+  --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-RL/datasets/BrickNet-MM-RL.jsonl \
+  --output /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json \
+  --expected-count 66456 --workers 8 --chunksize 8 --progress-every 100
+
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
+  --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
+  --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_b1/controller_audit.jsonl \
+  --mode b1-post-hoc --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
+
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
+  --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
+  --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_v1/controller_audit.jsonl \
+  --mode v1-silent-retry --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
+
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
+  --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
+  --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_v2/controller_audit.jsonl \
+  --mode v2-silent-dfs --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --candidates-per-round 8 --max-rounds-per-state 4 --max-backtrack-depth 3 \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
+
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
+  --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
+  --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_a0/controller_audit.jsonl \
+  --mode a0-act-feedback --backend hf --prompt-protocol stage8-act --seed 42 \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
+
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
+  --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
+  --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_a1/controller_audit.jsonl \
+  --mode a1-feedback-search --backend hf --prompt-protocol stage8-act --seed 42 \
+  --candidates-per-round 8 --max-rounds-per-state 4 --max-backtrack-depth 3 \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
+```
+
+每个 controller 命令自动同时生成 `<stem>.predictions.jsonl` 与
+`<stem>.raw_first_choice_predictions.jsonl`。分别把二者交给 BrickNet `evaluate_experiment.py`，然后使用
+`scripts/summarize_bricknet_agentic_val.py` 对 hash-frozen manifest 运行 seed-42、10,000 次 paired bootstrap；
+不得用 controller hard-valid success 代替 evaluator 的 pose-aware task strict success。
+
+先完成 R1-S 64 smoke。第一次 processor audit 会生成 boundary plan；随后由 BrickNet 在 accepted-action 边界重新物化，
+第二次 audit 必须得到 `cutoff_hits=0`。即便 64 smoke 通过，也只有 Stage5 full report 真实通过后 launcher 才放行训练。
+
+```bash
+cd /home/jiahao/task/BrickNet
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src:data_preprocess /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  data_preprocess/prepare_bricknet_stage8_act_sft.py \
+  --size 64 --variants R1-S \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json \
+  --overwrite
+
+mkdir -p /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/smoke64/token_audit
+cd /home/jiahao/task/LlamaFactory
+PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_stage8_act_tokens.py \
+  examples/train_lora/qwen35_08b_bricknet_stage8_r1_s_act_success_10k.yaml \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/smoke64/BrickNet-Stage8-R1-S.jsonl \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/smoke64/token_audit/BrickNet-Stage8-R1-S.json \
+  --dataset-name BrickNet-Stage8-R1-S-64
+
+cd /home/jiahao/task/BrickNet
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src:data_preprocess /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  data_preprocess/prepare_bricknet_stage8_act_sft.py \
+  --size 64 --variants R1-S \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json \
+  --window-plan R1-S=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/smoke64/token_audit/BrickNet-Stage8-R1-S.boundary_plan.jsonl \
+  --overwrite
+
+cd /home/jiahao/task/LlamaFactory
+PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_stage8_act_tokens.py \
+  examples/train_lora/qwen35_08b_bricknet_stage8_r1_s_act_success_10k.yaml \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/smoke64/BrickNet-Stage8-R1-S.jsonl \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/smoke64/token_audit/BrickNet-Stage8-R1-S.json \
+  --dataset-name BrickNet-Stage8-R1-S-64
+
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-S --scale 64 --refresh-initialization-audit
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-S --scale 64 --execute
+```
+
+64 smoke 验收后，用相同的两遍 audit/切窗协议构造并训练正式 R1-S 10k：
+
+```bash
+cd /home/jiahao/task/BrickNet
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src:data_preprocess /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  data_preprocess/prepare_bricknet_stage8_act_sft.py \
+  --size 10000 --variants R1-S \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json \
+  --overwrite
+
+mkdir -p /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit
+cd /home/jiahao/task/LlamaFactory
+PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_stage8_act_tokens.py \
+  examples/train_lora/qwen35_08b_bricknet_stage8_r1_s_act_success_10k.yaml \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/BrickNet-Stage8-R1-S.jsonl \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-S.json \
+  --dataset-name BrickNet-Stage8-R1-S-10k
+
+cd /home/jiahao/task/BrickNet
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src:data_preprocess /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  data_preprocess/prepare_bricknet_stage8_act_sft.py \
+  --size 10000 --variants R1-S \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json \
+  --window-plan R1-S=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-S.boundary_plan.jsonl \
+  --overwrite
+
+cd /home/jiahao/task/LlamaFactory
+PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_stage8_act_tokens.py \
+  examples/train_lora/qwen35_08b_bricknet_stage8_r1_s_act_success_10k.yaml \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/BrickNet-Stage8-R1-S.jsonl \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-S.json \
+  --dataset-name BrickNet-Stage8-R1-S-10k
+
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-S --scale 10k --refresh-initialization-audit
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-S --scale 10k --execute
+python scripts/launch_bricknet_stage8_controller_eval.py --run R1-S
+python scripts/launch_bricknet_stage8_controller_eval.py --run R1-S --execute
+```
+
+R1-S matched A0 gate 获批后，按以下顺序收集并构造 R1-C；collector 在每个 GT prefix 只采一个真实 proposal，
+accepted proposal 会 rollback 后继续 GT teacher forcing，最终每个 source 最多保留两个稳定 hash 选择的 rejection。
+
+```bash
+cd /home/jiahao/task/BrickNet
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src:data_preprocess /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/collect_bricknet_stage8_r1c.py \
+  --base /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-RL/datasets/BrickNet-MM-RL.jsonl \
+  --selection-manifest /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/stage2/manifests/stage2_train_10k_seed42.jsonl \
+  --size 10000 --backend hf --seed 42 \
+  --r1s-adapter /home/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/train_stage8_r1_s_act_success_10k_ep3_bs1_ga16_lora64_len16384 \
+  --output /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/R1-S-policy-rejections.jsonl
+
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src:data_preprocess /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  data_preprocess/prepare_bricknet_stage8_act_sft.py \
+  --size 10000 --variants R1-C \
+  --rejection-logs /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/R1-S-policy-rejections.jsonl \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json \
+  --overwrite
+
+cd /home/jiahao/task/LlamaFactory
+PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_stage8_act_tokens.py \
+  examples/train_lora/qwen35_08b_bricknet_stage8_r1_c_act_correction_10k.yaml \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/BrickNet-Stage8-R1-C.jsonl \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-C.json \
+  --dataset-name BrickNet-Stage8-R1-C-10k \
+  --baseline-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-S.json
+
+cd /home/jiahao/task/BrickNet
+BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
+PYTHONPATH=src:data_preprocess /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  data_preprocess/prepare_bricknet_stage8_act_sft.py \
+  --size 10000 --variants R1-C \
+  --rejection-logs /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/R1-S-policy-rejections.jsonl \
+  --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json \
+  --window-plan R1-C=/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-C.boundary_plan.jsonl \
+  --overwrite
+
+cd /home/jiahao/task/LlamaFactory
+PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_stage8_act_tokens.py \
+  examples/train_lora/qwen35_08b_bricknet_stage8_r1_c_act_correction_10k.yaml \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/BrickNet-Stage8-R1-C.jsonl \
+  /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-C.json \
+  --dataset-name BrickNet-Stage8-R1-C-10k \
+  --baseline-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/10k/token_audit/BrickNet-Stage8-R1-S.json
+
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-C --scale 10k --refresh-initialization-audit
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-C --scale 10k --execute
+python scripts/launch_bricknet_stage8_controller_eval.py --run R1-C
+python scripts/launch_bricknet_stage8_controller_eval.py --run R1-C --execute
+```
+
+R1-S 的 matched A0 VAL512 未改善前停止。R1-C 训练完成并通过 matched A0 gate 后，才检查 A1 日志是否达到
+1,000 rollback transitions/100 sources 以构造 R1-B。三个 launcher 均会从 exp4_2 新建 LoRA，并拒绝把
+R1-S/R1-C 串行当作下一实验初始化。完成真实 A1 日志转换、R1-B 70/20/10 token-mix 和两遍切窗审计后，入口为：
+
+```bash
+cd /home/jiahao/task/LlamaFactory
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-B --scale 10k --refresh-initialization-audit
+python scripts/launch_bricknet_stage8_act_sft.py --run R1-B --scale 10k --execute
+python scripts/launch_bricknet_stage8_controller_eval.py --run R1-B --execute
+```
+
+这些入口在 rejection/rollback 数据、80/20 或 70/20/10 supervised-token mix、matched max_steps、Stage5 report、
+processor、initialization 和 dataset hash 任一条件缺失时都会退出，不会静默训练。
