@@ -10,7 +10,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from llamafactory.extras.stage8_gate import adapter_artifact_sha256, validate_adapter_chain
+from llamafactory.extras.stage8_gate import (
+    adapter_artifact_sha256,
+    evaluate_stage8_build_report,
+    validate_adapter_chain,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +37,11 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def line_count(path: Path) -> int:
+    with path.open("rb") as handle:
+        return sum(1 for line in handle if line.strip())
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", choices=RUNS, required=True)
@@ -47,6 +56,7 @@ def main():
     scale_dir = "smoke64" if args.scale == "64" else "10k"
     bricknet_out = BRICKNET_ROOT / scale_dir
     dataset = bricknet_out / f"BrickNet-Stage8-{args.run}.jsonl"
+    build_report_path = bricknet_out / "BrickNet-Stage8-R1-report.json"
     report = bricknet_out / "token_audit" / f"BrickNet-Stage8-{args.run}.json"
     initialization_report = bricknet_out / "initialization_audit" / f"BrickNet-Stage8-{args.run}.json"
     config = ROOT / "examples/train_lora" / RUNS[args.run]
@@ -77,6 +87,31 @@ def main():
             or not audit.get("token_mix_eligible")
         ):
             blockers.append("WAIT_STAGE8_BOUNDARY_PLAN_AND_TOKEN_MIX_GATE")
+
+    build_report = json.loads(build_report_path.read_text()) if build_report_path.is_file() else None
+    build_gate = None
+    if build_report is None:
+        blockers.append("WAIT_STAGE8_BRICKNET_BUILD_REPORT")
+    elif not dataset.is_file() or audit is None:
+        blockers.append("WAIT_STAGE8_BUILD_REPORT_DATASET_AND_TOKEN_AUDIT_BINDING")
+    else:
+        build_gate = evaluate_stage8_build_report(
+            build_report,
+            run=args.run,
+            expected_size=64 if args.scale == "64" else 10_000,
+            dataset_path=dataset,
+            dataset_sha256=sha256_file(dataset),
+            dataset_count=line_count(dataset),
+            dataset_window_materialized=audit.get("dataset_window_materialized"),
+        )
+        if not build_gate["build_report_gate_passed"]:
+            blockers.extend(f"WAIT_STAGE8_{reason}" for reason in build_gate["build_report_blockers"])
+        if (
+            audit.get("build_report") != str(build_report_path.resolve())
+            or audit.get("build_report_sha256") != sha256_file(build_report_path)
+            or audit.get("input_count") != line_count(dataset)
+        ):
+            blockers.append("WAIT_STAGE8_BUILD_REPORT_TOKEN_AUDIT_HASH_BINDING")
     if args.run in {"R1-C", "R1-B"}:
         baseline_path = bricknet_out / "token_audit/BrickNet-Stage8-R1-S.json"
         baseline = json.loads(baseline_path.read_text()) if baseline_path.is_file() else None
@@ -133,6 +168,8 @@ def main():
                 "command": command,
                 "token_audit": audit,
                 "initialization_audit": initialization,
+                "bricknet_build_report": build_report,
+                "bricknet_build_gate": build_gate,
                 "blockers": blockers,
             },
             indent=2,

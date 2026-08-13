@@ -21,7 +21,11 @@ from llamafactory.data.converter import get_dataset_converter
 from llamafactory.data.parser import DatasetAttr
 from llamafactory.data.processor import SupervisedDatasetProcessor
 from llamafactory.extras.constants import IGNORE_INDEX
-from llamafactory.extras.stage8_gate import STAGE8_TOKEN_MIX_TARGETS, evaluate_supervised_token_mix
+from llamafactory.extras.stage8_gate import (
+    STAGE8_TOKEN_MIX_TARGETS,
+    evaluate_stage8_build_report,
+    evaluate_supervised_token_mix,
+)
 from llamafactory.hparams import get_train_args
 from llamafactory.model import load_tokenizer
 
@@ -38,6 +42,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset-name", required=True)
     parser.add_argument("--baseline-report", type=Path)
     parser.add_argument(
+        "--build-report",
+        type=Path,
+        help="Default: DATASET parent / BrickNet-Stage8-R1-report.json.",
+    )
+    parser.add_argument(
         "--boundary-plan",
         type=Path,
         help="Default: REPORT with .boundary_plan.jsonl suffix.",
@@ -50,6 +59,14 @@ def _run_name(dataset_name: str) -> str:
     if len(matches) != 1:
         raise SystemExit(f"cannot infer exactly one R1 run from dataset name: {dataset_name}")
     return matches[0]
+
+
+def _expected_size(dataset_name: str) -> int:
+    if dataset_name.endswith("-64"):
+        return 64
+    if dataset_name.endswith("-10k"):
+        return 10_000
+    raise SystemExit(f"cannot infer Stage-8 build size from dataset name: {dataset_name}")
 
 
 def _validate_raw(path: Path, expected_run: str) -> list[dict[str, Any]]:
@@ -171,7 +188,7 @@ def _materialize_window(row: dict[str, Any], message_start: int, message_end: in
     window = deepcopy(row)
     system = deepcopy(messages[0])
     user = deepcopy(messages[1])
-    if message_start == 1:
+    if message_start == 2:
         body_start = 2
     else:
         context = messages[message_start]
@@ -216,7 +233,7 @@ def _window_plan(
     windows: list[dict[str, Any]] = []
     start = 0
     while start < len(supervised):
-        message_start = 1 if start == 0 else int(supervised[start - 1]["message_index"]) + 1
+        message_start = 2 if start == 0 else int(supervised[start - 1]["message_index"]) + 1
         low, high = start + 1, len(supervised)
         best: tuple[int, int] | None = None
         while low <= high:
@@ -288,6 +305,25 @@ def main() -> None:
     run = _run_name(args.dataset_name)
     raw_rows = _validate_raw(args.dataset, run)
     dataset_sha256 = sha256_file(args.dataset)
+    window_flags = {
+        "window_source_record_id" in item["row"] or "window_plan_audit" in item["row"] for item in raw_rows
+    }
+    if len(window_flags) != 1:
+        raise SystemExit("dataset mixes raw and window-materialized Stage-8 rows")
+    dataset_window_materialized = window_flags.pop()
+    build_report_path = args.build_report or args.dataset.parent / "BrickNet-Stage8-R1-report.json"
+    if not build_report_path.is_file():
+        raise SystemExit(f"missing BrickNet Stage-8 build report: {build_report_path}")
+    build_report = json.loads(build_report_path.read_text(encoding="utf-8"))
+    build_gate = evaluate_stage8_build_report(
+        build_report,
+        run=run,
+        expected_size=_expected_size(args.dataset_name),
+        dataset_path=args.dataset,
+        dataset_sha256=dataset_sha256,
+        dataset_count=len(raw_rows),
+        dataset_window_materialized=dataset_window_materialized,
+    )
     config_payload = OmegaConf.to_container(OmegaConf.load(args.config))
     config_payload["dataset"] = args.dataset_name
     model_args, data_args, _, _, _ = get_train_args(config_payload)
@@ -392,6 +428,7 @@ def main() -> None:
         and window_plan_failures == 0
         and mix["token_mix_eligible"]
         and matched_eligible
+        and build_gate["build_report_gate_passed"]
     )
     boundary_plan = args.boundary_plan or args.report.with_suffix(".boundary_plan.jsonl")
     _write_jsonl_atomic(boundary_plan, boundary_rows)
@@ -402,6 +439,9 @@ def main() -> None:
         "config_sha256": sha256_file(args.config),
         "dataset": str(args.dataset.resolve()),
         "dataset_sha256": dataset_sha256,
+        "dataset_window_materialized": dataset_window_materialized,
+        "build_report": str(build_report_path.resolve()),
+        "build_report_sha256": sha256_file(build_report_path),
         "input_count": len(raw_rows),
         "processor_output_count": len(boundary_rows),
         "supervised_assistant_tokens": supervised_tokens,
@@ -425,6 +465,7 @@ def main() -> None:
             "compact UTF-8 JSON; rerun this audit on BrickNet-materialized rows"
         ),
         **mix,
+        **build_gate,
         **matched,
         "training_eligible": eligible,
     }

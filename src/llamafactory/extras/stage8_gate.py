@@ -79,6 +79,55 @@ def evaluate_supervised_token_mix(counts: Counter[str], run: str) -> dict[str, A
     }
 
 
+def evaluate_stage8_build_report(
+    report: dict[str, Any],
+    *,
+    run: str,
+    expected_size: int,
+    dataset_path: Path,
+    dataset_sha256: str,
+    dataset_count: int,
+    dataset_window_materialized: bool,
+) -> dict[str, Any]:
+    """Bind one BrickNet build report variant to the exact audited dataset."""
+    blockers: list[str] = []
+    if report.get("schema_version") != "bricknet-stage8-act-sft-build-report-v1":
+        blockers.append("BUILD_REPORT_SCHEMA_MISMATCH")
+    if report.get("size") != expected_size:
+        blockers.append("BUILD_REPORT_SIZE_MISMATCH")
+    stage5_gate = report.get("stage5_replay_gate")
+    if not isinstance(stage5_gate, dict) or stage5_gate.get("stage5_replay_gate_passed") is not True:
+        blockers.append("STAGE5_REPLAY_GATE_NOT_PASSED")
+    variants = report.get("variants")
+    variant = variants.get(run) if isinstance(variants, dict) else None
+    if not isinstance(variant, dict):
+        blockers.append("BUILD_REPORT_VARIANT_MISSING")
+    else:
+        if variant.get("count") != dataset_count:
+            blockers.append("BUILD_REPORT_VARIANT_COUNT_MISMATCH")
+        try:
+            reported_dataset = Path(variant.get("dataset", "")).resolve()
+        except TypeError:
+            reported_dataset = Path("/")
+        if reported_dataset != dataset_path.resolve():
+            blockers.append("BUILD_REPORT_VARIANT_PATH_MISMATCH")
+        if variant.get("dataset_sha256") != dataset_sha256:
+            blockers.append("BUILD_REPORT_VARIANT_SHA256_MISMATCH")
+        if variant.get("window_materialized") is not dataset_window_materialized:
+            blockers.append("BUILD_REPORT_WINDOW_MATERIALIZATION_MISMATCH")
+        type_counts = variant.get("trajectory_type_counts")
+        if (
+            not isinstance(type_counts, dict)
+            or not all(isinstance(value, int) and value >= 0 for value in type_counts.values())
+            or sum(type_counts.values()) != dataset_count
+        ):
+            blockers.append("BUILD_REPORT_TRAJECTORY_COUNTS_MISMATCH")
+    return {
+        "build_report_gate_passed": not blockers,
+        "build_report_blockers": blockers,
+    }
+
+
 def evaluate_initialization_gate(
     reference_logits: torch.Tensor,
     candidate_logits: torch.Tensor,

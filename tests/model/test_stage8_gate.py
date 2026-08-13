@@ -2,7 +2,11 @@ from collections import Counter
 
 import torch
 
-from llamafactory.extras.stage8_gate import evaluate_initialization_gate, evaluate_supervised_token_mix
+from llamafactory.extras.stage8_gate import (
+    evaluate_initialization_gate,
+    evaluate_stage8_build_report,
+    evaluate_supervised_token_mix,
+)
 
 
 class MockParameter:
@@ -62,3 +66,54 @@ def test_stage8_token_mix_uses_exact_half_percent_tolerance():
     assert not evaluate_supervised_token_mix(Counter({"R1-S": 806, "R1-C": 194}), "R1-C")[
         "token_mix_eligible"
     ]
+
+
+def build_report(dataset_path, *, stage5_passed=True, dataset_sha256="dataset-sha", window_materialized=True):
+    return {
+        "schema_version": "bricknet-stage8-act-sft-build-report-v1",
+        "size": 64,
+        "stage5_replay_gate": {"stage5_replay_gate_passed": stage5_passed},
+        "variants": {
+            "R1-S": {
+                "count": 2,
+                "dataset": str(dataset_path),
+                "dataset_sha256": dataset_sha256,
+                "trajectory_type_counts": {"R1-S": 2},
+                "window_materialized": window_materialized,
+            }
+        },
+    }
+
+
+def test_stage8_build_report_binds_variant_to_current_dataset(tmp_path):
+    dataset = tmp_path / "BrickNet-Stage8-R1-S.jsonl"
+    dataset.write_text("{}\n{}\n")
+    result = evaluate_stage8_build_report(
+        build_report(dataset),
+        run="R1-S",
+        expected_size=64,
+        dataset_path=dataset,
+        dataset_sha256="dataset-sha",
+        dataset_count=2,
+        dataset_window_materialized=True,
+    )
+    assert result == {"build_report_gate_passed": True, "build_report_blockers": []}
+
+
+def test_stage8_build_report_blocks_smoke_override_and_dataset_drift(tmp_path):
+    dataset = tmp_path / "BrickNet-Stage8-R1-S.jsonl"
+    dataset.write_text("{}\n{}\n")
+    report = build_report(dataset, stage5_passed=False, dataset_sha256="old-sha", window_materialized=False)
+    result = evaluate_stage8_build_report(
+        report,
+        run="R1-S",
+        expected_size=64,
+        dataset_path=dataset,
+        dataset_sha256="new-sha",
+        dataset_count=2,
+        dataset_window_materialized=True,
+    )
+    assert result["build_report_gate_passed"] is False
+    assert "STAGE5_REPLAY_GATE_NOT_PASSED" in result["build_report_blockers"]
+    assert "BUILD_REPORT_VARIANT_SHA256_MISMATCH" in result["build_report_blockers"]
+    assert "BUILD_REPORT_WINDOW_MATERIALIZATION_MISMATCH" in result["build_report_blockers"]
