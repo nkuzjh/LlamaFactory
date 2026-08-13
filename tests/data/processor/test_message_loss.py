@@ -58,3 +58,21 @@ def test_message_loss_stays_aligned_when_mask_history_reverses_turns():
     supervised = [token for token in labels if token != IGNORE_INDEX]
     final_target = processor.template.encode_multiturn(processor.tokenizer, prompt + response)[-1][1]
     assert supervised == final_target
+
+
+def test_turn_boundaries_cover_masked_and_supervised_assistant_targets():
+    processor = build_processor()
+    prompt, response = example_messages()
+    input_ids, labels, boundaries = processor._encode_data_example_with_turn_boundaries(
+        prompt, response, None, None, [], [], []
+    )
+    assert [boundary["loss"] for boundary in boundaries] == [False, True, True]
+    assert [boundary["assistant_turn_ordinal"] for boundary in boundaries] == [0, 1, 2]
+    for boundary in boundaries:
+        start = boundary["target_token_start"]
+        end = boundary["target_token_end"]
+        assert input_ids[start:end]
+        if boundary["loss"]:
+            assert labels[start:end] == input_ids[start:end]
+        else:
+            assert labels[start:end] == [IGNORE_INDEX] * (end - start)
