@@ -62,3 +62,36 @@ def test_sharegpt_converter():
         "_videos": None,
         "_audios": None,
     }
+
+
+@pytest.mark.runs_on(["cpu", "mps"])
+def test_sharegpt_converter_preserves_message_loss():
+    dataset_attr = DatasetAttr("file", "stage8.jsonl")
+    data_args = DataArguments()
+    example = {
+        "conversations": [
+            {"from": "system", "value": "system", "loss": False},
+            {"from": "human", "value": "prompt", "loss": False},
+            {"from": "gpt", "value": "bad proposal", "loss": False},
+            {"from": "observation", "value": "rejected", "loss": False},
+            {"from": "gpt", "value": "correction", "loss": True},
+        ]
+    }
+    converted = get_dataset_converter("sharegpt", dataset_attr, data_args)(example)
+    assert converted["_prompt"][1]["loss"] is False
+    assert converted["_response"][0]["loss"] is True
+
+
+@pytest.mark.runs_on(["cpu", "mps"])
+def test_sharegpt_converter_rejects_nonassistant_positive_loss():
+    dataset_attr = DatasetAttr("file", "stage8.jsonl")
+    data_args = DataArguments()
+    example = {
+        "conversations": [
+            {"from": "human", "value": "prompt", "loss": True},
+            {"from": "gpt", "value": "answer", "loss": True},
+        ]
+    }
+    converted = get_dataset_converter("sharegpt", dataset_attr, data_args)(example)
+    assert converted["_prompt"] == []
+    assert converted["_response"] == []

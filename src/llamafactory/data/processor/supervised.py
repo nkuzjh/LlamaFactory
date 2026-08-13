@@ -69,6 +69,12 @@ class SupervisedDatasetProcessor(DatasetProcessor):
         if self.data_args.mask_history:
             encoded_pairs = encoded_pairs[::-1]  # high priority for last turns
 
+        assistant_messages = [message for message in messages if message["role"] == "assistant"]
+        if len(assistant_messages) != len(encoded_pairs):
+            raise ValueError("Encoded pair count does not match assistant message count.")
+        if self.data_args.mask_history:
+            assistant_messages = assistant_messages[::-1]
+
         for turn_idx, (source_ids, target_ids) in enumerate(encoded_pairs):
             if total_length >= self.data_args.cutoff_len:
                 break
@@ -87,7 +93,10 @@ class SupervisedDatasetProcessor(DatasetProcessor):
             else:
                 source_label = [IGNORE_INDEX] * source_len
 
-            if self.data_args.mask_history and turn_idx != 0:  # train on the last turn only
+            target_loss = assistant_messages[turn_idx].get("loss", True)
+            if not isinstance(target_loss, bool):
+                raise ValueError("Assistant message loss must be boolean.")
+            if (self.data_args.mask_history and turn_idx != 0) or not target_loss:
                 target_label = [IGNORE_INDEX] * target_len
             else:
                 target_label = target_ids
