@@ -59,6 +59,28 @@ class SupervisedDatasetProcessor(DatasetProcessor):
         videos: list["VideoInput"],
         audios: list["AudioInput"],
     ) -> tuple[list[int], list[int]]:
+        input_ids, labels, _ = self._encode_data_example_with_turn_boundaries(
+            prompt, response, system, tools, images, videos, audios
+        )
+        return input_ids, labels
+
+    def _encode_data_example_with_turn_boundaries(
+        self,
+        prompt: list[dict[str, str]],
+        response: list[dict[str, str]],
+        system: Optional[str],
+        tools: Optional[str],
+        images: list["ImageInput"],
+        videos: list["VideoInput"],
+        audios: list["AudioInput"],
+    ) -> tuple[list[int], list[int], list[dict[str, int | bool]]]:
+        r"""Encode an example and expose each assistant target's token boundary.
+
+        The boundary metadata is used by fail-closed offline audits. It is
+        deliberately produced by the same code path as training so an audit
+        cannot silently substitute a second tokenizer or chat-template
+        implementation.
+        """
         messages = self.template.mm_plugin.process_messages(prompt + response, images, videos, audios, self.processor)
         input_ids, labels = self.template.mm_plugin.process_token_ids(
             [], [], images, videos, audios, self.tokenizer, self.processor
@@ -69,6 +91,13 @@ class SupervisedDatasetProcessor(DatasetProcessor):
         if self.data_args.mask_history:
             encoded_pairs = encoded_pairs[::-1]  # high priority for last turns
 
+        assistant_messages = [message for message in messages if message["role"] == "assistant"]
+        if len(assistant_messages) != len(encoded_pairs):
+            raise ValueError("Encoded pair count does not match assistant message count.")
+        if self.data_args.mask_history:
+            assistant_messages = assistant_messages[::-1]
+
+        turn_boundaries: list[dict[str, int | bool]] = []
         for turn_idx, (source_ids, target_ids) in enumerate(encoded_pairs):
             if total_length >= self.data_args.cutoff_len:
                 break
@@ -87,23 +116,48 @@ class SupervisedDatasetProcessor(DatasetProcessor):
             else:
                 source_label = [IGNORE_INDEX] * source_len
 
-            if self.data_args.mask_history and turn_idx != 0:  # train on the last turn only
+            target_loss = assistant_messages[turn_idx].get("loss", True)
+            if not isinstance(target_loss, bool):
+                raise ValueError("Assistant message loss must be boolean.")
+            if (self.data_args.mask_history and turn_idx != 0) or not target_loss:
                 target_label = [IGNORE_INDEX] * target_len
             else:
                 target_label = target_ids
 
             if self.data_args.mask_history:  # reversed sequences
+                added_length = source_len + target_len
+                for boundary in turn_boundaries:
+                    boundary["target_token_start"] = int(boundary["target_token_start"]) + added_length
+                    boundary["target_token_end"] = int(boundary["target_token_end"]) + added_length
                 input_ids = source_ids + target_ids + input_ids
                 labels = source_label + target_label + labels
+                target_start = source_len
             else:
+                target_start = len(input_ids) + source_len
                 input_ids += source_ids + target_ids
                 labels += source_label + target_label
+
+            turn_boundaries.append(
+                {
+                    "assistant_turn_ordinal": turn_idx,
+                    "loss": target_loss,
+                    "target_token_start": target_start,
+                    "target_token_end": target_start + target_len,
+                    "target_token_count": target_len,
+                    "supervised_token_count": target_len if target_loss else 0,
+                }
+            )
 
         if self.template.efficient_eos:
             input_ids += [self.tokenizer.eos_token_id]
             labels += [self.tokenizer.eos_token_id]
 
-        return input_ids, labels
+        if self.data_args.mask_history:
+            turn_boundaries.reverse()
+            for turn_idx, boundary in enumerate(turn_boundaries):
+                boundary["assistant_turn_ordinal"] = turn_idx
+
+        return input_ids, labels, turn_boundaries
 
     def preprocess_dataset(self, examples: dict[str, list[Any]]) -> dict[str, list[Any]]:
         # build inputs with format `<bos> X Y <eos>` and labels with format `<ignore> ... <ignore> Y <eos>`

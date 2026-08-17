@@ -145,6 +145,21 @@ class SharegptDatasetConverter(DatasetConverter):
         even_tags = (self.dataset_attr.assistant_tag, self.dataset_attr.function_tag)
         accept_tags = (odd_tags, even_tags)
         messages = example[self.dataset_attr.messages]
+        for message in messages:
+            if "loss" in message:
+                role = tag_mapping.get(message.get(self.dataset_attr.role_tag))
+                if not isinstance(message["loss"], bool):
+                    logger.warning_rank0(f"Message loss must be boolean in {messages}.")
+                    return {
+                        "_prompt": [], "_response": [], "_system": "", "_tools": "",
+                        "_images": None, "_videos": None, "_audios": None,
+                    }
+                if role != Role.ASSISTANT.value and message["loss"]:
+                    logger.warning_rank0(f"Only assistant messages may set loss=true in {messages}.")
+                    return {
+                        "_prompt": [], "_response": [], "_system": "", "_tools": "",
+                        "_images": None, "_videos": None, "_audios": None,
+                    }
         if (
             self.dataset_attr.system_tag
             and len(messages) != 0
@@ -163,12 +178,22 @@ class SharegptDatasetConverter(DatasetConverter):
                 broken_data = True
                 break
 
-            aligned_messages.append(
-                {
-                    "role": tag_mapping[message[self.dataset_attr.role_tag]],
-                    "content": message[self.dataset_attr.content_tag],
-                }
-            )
+            role = tag_mapping[message[self.dataset_attr.role_tag]]
+            aligned_message = {
+                "role": role,
+                "content": message[self.dataset_attr.content_tag],
+            }
+            if "loss" in message:
+                if not isinstance(message["loss"], bool):
+                    logger.warning_rank0(f"Message loss must be boolean in {messages}.")
+                    broken_data = True
+                    break
+                if role != Role.ASSISTANT.value and message["loss"]:
+                    logger.warning_rank0(f"Only assistant messages may set loss=true in {messages}.")
+                    broken_data = True
+                    break
+                aligned_message["loss"] = message["loss"]
+            aligned_messages.append(aligned_message)
 
         if (not self.dataset_attr.ranking and len(aligned_messages) % 2 != 0) or (
             self.dataset_attr.ranking and len(aligned_messages) % 2 == 0

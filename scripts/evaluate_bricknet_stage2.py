@@ -17,6 +17,7 @@ from launch_bricknet_stage2_sft import (
     BRICKNET_ROOT,
     EXPERIMENTS,
     Experiment,
+    _trace_variant,
 )
 
 
@@ -158,7 +159,7 @@ def _commands(
         str(BRICKNET_PYTHON),
         str(TRACE_EXTRACTOR),
         "--variant",
-        experiment.variant,
+        _trace_variant(experiment),
         "--label-format",
         "path",
         "--input",
@@ -250,18 +251,20 @@ def _prepare_metric_inputs(paths: EvaluationPaths) -> None:
 def main() -> None:
     args = parse_args()
     experiment = EXPERIMENTS_BY_ID[args.experiment]
+    trace_variant = _trace_variant(experiment)
     output = (
         args.output_dir.expanduser().resolve()
         if args.output_dir
         else BRICKNET_ROOT / "outputs_val/qwen35_08b" / experiment.predict_output.name
     )
     paths = EvaluationPaths.for_experiment(experiment, output)
-    canonical_ready = _canonical_ready(paths, experiment.variant)
+    canonical_ready = _canonical_ready(paths, trace_variant)
     already_complete = _evaluation_complete(paths)
     commands = _commands(experiment, paths, args)
     blockers: list[str] = []
     checks = {
         "variant": experiment.variant,
+        "trace_variant": trace_variant,
         "generated_predictions": str(paths.generated),
         "generated_predictions_ready": paths.generated.is_file(),
         "canonical_predictions": str(paths.canonical),

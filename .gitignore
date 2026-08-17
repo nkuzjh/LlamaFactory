@@ -186,6 +186,7 @@ data/images
 data/BrickNet-PT_text_*.jsonl
 data/BrickNet-PT_text_*.jsonl.report.json
 data/bricknet_stage2/
+data/bricknet_stage2_v2/
 
 data/BrickNet-MM*
 data/bricknet_pt_exp2/
