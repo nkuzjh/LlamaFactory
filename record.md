@@ -545,6 +545,83 @@ python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run exp4_6
 python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run exp4_6 --execute
 ```
 
+### PT-exp2-100k 外部权重（exp4_4_1 / exp4_7_1 的前置）
+
+用户已在另一台服务器用 2× RTX PRO 6000 训练 100,000 steps 的 PT-exp2 权重。本机尚未同步，规范路径固定为
+`saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k`。在运行 exp4_4_1 / exp4_7_1 之前，先把该 adapter 拷贝到
+该目录，并确认包含 `adapter_config.json` 与 `adapter_model.safetensors`：
+
+```bash
+cd /home/jiahao/task/LlamaFactory
+# 示例：从远程主机同步（按实际地址替换 <remote> 与 <远程目录>）。
+mkdir -p saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k
+rsync -av <remote>:<远程目录>/ saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k/
+sha256sum saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k/adapter_model.safetensors
+ls saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k/adapter_config.json \
+   saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k/adapter_model.safetensors
+```
+
+该 100k 权重与 `PT-exp2-text8m(250k) → mm-e1/e2/e3 → PT-exp2` 主链相互独立；exp4_4_1 / exp4_7_1
+直接从 `PT-exp2-100k` 初始化，不等待 text8m/MM/e1-e3 或 final alias。
+
+### exp4_4_1 — PT-exp2-100k + NonThinking-Control 10k
+
+配置：train=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_10k_pt_exp2_100k.yaml`，
+predict=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_predict_pt_exp2_100k.yaml`。
+与 exp4_4 相同的 LoRA/LR/epoch/batch/长度协议，仅初始化换成 `PT-exp2-100k`。
+
+```bash
+cd /home/jiahao/task/LlamaFactory
+
+# 单卡训练（GA 在 CLI 覆盖为 16，global batch 16）。
+conda run -n llamafactory --no-capture-output llamafactory-cli train \
+  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_10k_pt_exp2_100k.yaml \
+  gradient_accumulation_steps=16
+
+# 双卡训练（与 launcher 相同的 DDP 注入）。
+FORCE_TORCHRUN=1 NPROC_PER_NODE=2 NNODES=1 CUDA_VISIBLE_DEVICES=0,1 \
+  conda run -n llamafactory --no-capture-output llamafactory-cli train \
+  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_10k_pt_exp2_100k.yaml \
+  gradient_accumulation_steps=8
+
+# VAL512 推理（单卡）。
+conda run -n llamafactory --no-capture-output llamafactory-cli train \
+  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_predict_pt_exp2_100k.yaml
+
+# 统一评测（提取 path + BLEU/ROUGE + 渲染/图文指标 + alignment）。
+conda run -n llamafactory --no-capture-output python \
+  scripts/evaluate_bricknet_stage2.py --experiment exp4_4_1 --execute
+```
+
+### exp4_7_1 — PT-exp2-100k + Thinking-Hard 10k
+
+配置：train=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml`，
+predict=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_predict_pt_exp2_100k.yaml`。
+与 exp4_3 相同的 Thinking-Hard 数据与训练协议，仅初始化换成 `PT-exp2-100k`；评测自动走 strict trace 提取。
+
+```bash
+cd /home/jiahao/task/LlamaFactory
+
+# 单卡训练。
+conda run -n llamafactory --no-capture-output llamafactory-cli train \
+  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml \
+  gradient_accumulation_steps=16
+
+# 双卡训练。
+FORCE_TORCHRUN=1 NPROC_PER_NODE=2 NNODES=1 CUDA_VISIBLE_DEVICES=0,1 \
+  conda run -n llamafactory --no-capture-output llamafactory-cli train \
+  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml \
+  gradient_accumulation_steps=8
+
+# VAL512 推理（单卡）。
+conda run -n llamafactory --no-capture-output llamafactory-cli train \
+  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_predict_pt_exp2_100k.yaml
+
+# 统一评测（strict trace 提取 + 全指标 + alignment）。
+conda run -n llamafactory --no-capture-output python \
+  scripts/evaluate_bricknet_stage2.py --experiment exp4_7_1 --execute
+```
+
 ## exp4_2 直通 Stage5–8（action-only）
 
 固定链：`Qwen/Qwen3.5-0.8B + PT-exp1 + exp4_2`。以下命令已预填当前数据、adapter、VAL512 和报告路径，
@@ -677,6 +754,31 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
 已因上述 `<think>`/EOS/framing 协议异常而**暂缓**，重跑前不得作为相对 exp4_2 的证据。修复协议重跑五组
 controller 并重建 manifest/bootstrap 后，再按 task strict → dense → 成本的顺序重新下结论；若届时 A0/A1
 仍显著退化，下一步应先训练 R1-S 10k 交互协议 cold start，而不是把未训练的显式 feedback 设为默认。
+
+
+### exp4_2 固定原始预测重放（B1 同款 post-hoc）
+
+把 exp4_2 冻结的 512 条原始预测作为 replay 输入，走与 B1 完全相同的 post-hoc 验证（不重新采样、纯 CPU、不占
+GPU），并在 exp4_2 结果目录的 `post_hoc/` 下产出与 B1 目录同结构的结果文件。该 replay 产物不进入五组 HF 的
+`agentic_exp4_2_stage67_manifest`，与「新随机种子的 B1」是两个独立口径。
+
+```bash
+# 一键：prepare（冻结预测→replay+provenance）→ run（replay post-hoc）→ check（fail-closed）→ evaluate（final/raw 全套评测）。
+cd /home/jiahao/task/BrickNet
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/exp4_2_post_hoc.py --action all --execute
+
+# 只重放+校验（约 15 秒，不跑渲染/图文指标）：
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/exp4_2_post_hoc.py --action prepare --execute
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/exp4_2_post_hoc.py --action run --execute
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/exp4_2_post_hoc.py --action check
+```
+
+输出根为 `outputs_val/qwen35_08b/eval_exp4_2_stage2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/post_hoc/`：
+`controller_audit.jsonl`、final/raw 两份 predictions、`replay.jsonl`、`provenance.json`、`consistency_report.json`
+与 `eval_final/`、`eval_raw/`。raw 与冻结 `generated_predictions.jsonl` 的 `predict` 逐字节一致；final 只保留通过
+全部硬检查的原路径，失败样本为空串。同时 `run_bricknet_agentic_inference.py` 的 replay 分支现在也支持
+`--stage5-report` 自动绑定 `BRICKNET_DATA`。
 
 
 ### R1-S

@@ -150,6 +150,47 @@ EXPERIMENTS = {
         selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
         expected_train_count=10_000,
     ),
+    # PT-exp2-100k downstream variants.  These registry keys are intentionally
+    # not reachable from this launcher's (variant, scale) CLI: they exist only
+    # so evaluate_bricknet_stage2.py can run the complete VAL512 evaluation
+    # pipeline for the externally initialized experiments.  Training and
+    # prediction for these variants use direct llamafactory-cli commands.
+    ("nonthinking-control-pt-exp2-100k", "10k"): Experiment(
+        experiment_id="exp4_4_1",
+        variant="nonthinking-control",
+        scale="10k",
+        dataset="BrickNet-Stage2-NonThinking-Control-10k",
+        train_file=ROOT / "data/bricknet_stage2/10k/BrickNet-Stage2-NonThinking-Control.jsonl",
+        eval_file=VAL_ROOT / "datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_10k_pt_exp2_100k.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_predict_pt_exp2_100k.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_4_1_qwen35_08b_PT_exp2_100k_stage2_nonthinking_control_10k_ep3_bs1_gbs16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_4_1_PT_exp2_100k_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
+    ("thinking-hard-pt-exp2-100k", "10k"): Experiment(
+        experiment_id="exp4_7_1",
+        variant="thinking-hard",
+        scale="10k",
+        dataset="BrickNet-Stage2-ThinkingHard-10k",
+        train_file=ROOT / "data/bricknet_stage2/10k/BrickNet-Stage2-ThinkingHard.jsonl",
+        eval_file=VAL_ROOT / "datasets/BrickNet-Stage2-Thinking-Hard-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_predict_pt_exp2_100k.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_10k_ep3_bs1_gbs16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_7_1_PT_exp2_100k_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
 }
 
 

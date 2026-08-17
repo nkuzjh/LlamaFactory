@@ -1,0 +1,40 @@
+### exp4_4_1: PT-exp2-100k + NonThinking-Control 10k, fixed VAL512 prediction
+
+### model
+model_name_or_path: Qwen/Qwen3.5-0.8B
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k,saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_4_1_qwen35_08b_PT_exp2_100k_stage2_nonthinking_control_10k_ep3_bs1_gbs16_lora64_len16384
+trust_remote_code: true
+flash_attn: auto
+
+### method
+stage: sft
+do_predict: true
+predict_with_generate: true
+finetuning_type: lora
+
+### dataset
+eval_dataset: BrickNet-Stage2-NonThinking-Control-VAL512-Eval
+dataset_dir: data
+media_dir: /home/jiahao/task/BrickNet
+template: qwen3_5_nothink
+enable_thinking: false
+cutoff_len: 16384
+preprocessing_num_workers: 16
+image_max_pixels: 589824
+image_min_pixels: 1024
+video_max_pixels: 65536
+video_min_pixels: 256
+
+### output
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_4_1_PT_exp2_100k_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20
+report_to: none
+
+### eval
+per_device_eval_batch_size: 1
+
+### generation
+max_new_tokens: 16384
+do_sample: true
+temperature: 1.0
+top_k: 20
+top_p: 0.95
