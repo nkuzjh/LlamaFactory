@@ -593,11 +593,13 @@ conda run -n llamafactory --no-capture-output python \
   scripts/evaluate_bricknet_stage2.py --experiment exp4_4_1 --execute
 ```
 
-### exp4_7_1 — PT-exp2-100k + Thinking-Hard 10k
+### exp4_7_1 — PT-exp2-100k + Stage-2 V2 Thinking-Hard Lean-State 10k
 
 配置：train=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml`，
 predict=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_predict_pt_exp2_100k.yaml`。
-与 exp4_3 相同的 Thinking-Hard 数据与训练协议，仅初始化换成 `PT-exp2-100k`；评测自动走 strict trace 提取。
+与 exp4_3_1 相同的 Stage-2 V2 Lean-State 数据（`BrickNet-Stage2-ThinkingHard-V2-LeanState-10k` 与
+`BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval`）与训练协议，仅初始化换成 `PT-exp2-100k`；
+不使用效果不佳的旧 Thinking-Hard 数据。评测自动走 strict trace 提取（variant=thinking-hard-v2-lean-state）。
 
 ```bash
 cd /home/jiahao/task/LlamaFactory
