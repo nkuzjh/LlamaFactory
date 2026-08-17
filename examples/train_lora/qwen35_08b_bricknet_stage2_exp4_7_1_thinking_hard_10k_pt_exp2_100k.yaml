@@ -5,7 +5,7 @@
 
 ### model
 model_name_or_path: Qwen/Qwen3.5-0.8B
-adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/backup/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack-checkpoint-100000
 trust_remote_code: true
 flash_attn: auto
 disable_gradient_checkpointing: false

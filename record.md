@@ -545,7 +545,7 @@ python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run exp4_6
 python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run exp4_6 --execute
 ```
 
-### PT-exp2-100k 外部权重（exp4_4_1 / exp4_7_1 的前置）
+### PT-exp2-100k 权重
 
 用户已在另一台服务器用 2× RTX PRO 6000 训练 100,000 steps 的 PT-exp2 权重。本机尚未同步，规范路径固定为
 `saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k`。在运行 exp4_4_1 / exp4_7_1 之前，先把该 adapter 拷贝到
@@ -562,9 +562,9 @@ ls saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-100k/adapter_config.json \
 ```
 
 该 100k 权重与 `PT-exp2-text8m(250k) → mm-e1/e2/e3 → PT-exp2` 主链相互独立；exp4_4_1 / exp4_7_1
-直接从 `PT-exp2-100k` 初始化，不等待 text8m/MM/e1-e3 或 final alias。
+直接从 `PT-exp2-100k` 初始化，不等待 text8m/MM-e1/e2/e3 或 final alias。
 
-### exp4_4_1 — PT-exp2-100k + NonThinking-Control 10k
+#### exp4_4_1 = PT-exp2-100k + NonThinking-Control 10k
 
 配置：train=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_10k_pt_exp2_100k.yaml`，
 predict=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_predict_pt_exp2_100k.yaml`。
@@ -574,7 +574,8 @@ predict=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_con
 cd /home/jiahao/task/LlamaFactory
 
 # 单卡训练（GA 在 CLI 覆盖为 16，global batch 16）。
-conda run -n llamafactory --no-capture-output llamafactory-cli train \
+# conda run -n llamafactory --no-capture-output
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train \
   examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_10k_pt_exp2_100k.yaml \
   gradient_accumulation_steps=16
 
@@ -593,7 +594,7 @@ conda run -n llamafactory --no-capture-output python \
   scripts/evaluate_bricknet_stage2.py --experiment exp4_4_1 --execute
 ```
 
-### exp4_7_1 — PT-exp2-100k + Thinking-Hard 10k
+#### exp4_7_1 = PT-exp2-100k + Thinking-Hard 10k
 
 配置：train=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml`，
 predict=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_predict_pt_exp2_100k.yaml`。
@@ -603,7 +604,8 @@ predict=`examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_p
 cd /home/jiahao/task/LlamaFactory
 
 # 单卡训练。
-conda run -n llamafactory --no-capture-output llamafactory-cli train \
+#  conda run -n llamafactory --no-capture-output
+CUDA_VISIBLE_DEVICES=1 llamafactory-cli train \
   examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml \
   gradient_accumulation_steps=16
 
