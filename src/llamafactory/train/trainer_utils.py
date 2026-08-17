@@ -24,12 +24,13 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import torch
 import torch.nn.functional as F
+from datasets import Dataset
 from transformers import Trainer
 from transformers.integrations import is_deepspeed_zero3_enabled
 from transformers.modeling_utils import is_fsdp_enabled
 from transformers.optimization import get_scheduler
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
-from transformers.trainer_pt_utils import get_parameter_names
+from transformers.trainer_pt_utils import LengthGroupedSampler, get_parameter_names
 from typing_extensions import override
 
 from ..extras import logging
@@ -63,6 +64,37 @@ if TYPE_CHECKING:
 
 
 logger = logging.get_logger(__name__)
+
+
+def create_fast_length_grouped_sampler(
+    trainer: "Trainer", dataset: Any, batch_size: int
+) -> Optional["LengthGroupedSampler"]:
+    r"""Create a length sampler without lazy scalar reads from a datasets Column.
+
+    ``datasets>=4`` returns a lazy ``Column`` for ``dataset[column_name]``.
+    Transformers sorts grouped indices with random scalar lookups into that
+    object, which is prohibitively slow for multi-million-row datasets.  Read
+    the persisted scalar Arrow column into a compact NumPy array once instead.
+
+    Returning ``None`` deliberately preserves the Transformers fallback for
+    datasets without a persisted length column.
+    """
+    if trainer.args.train_sampling_strategy != "group_by_length" or not isinstance(dataset, Dataset):
+        return None
+
+    length_column = trainer.args.length_column_name
+    if length_column not in dataset.column_names:
+        return None
+
+    lengths = dataset.data.column(length_column).combine_chunks().to_numpy(zero_copy_only=False)
+    model_input_name = trainer.processing_class.model_input_names[0] if trainer.processing_class is not None else None
+    logger.info_rank0(f"Loaded {len(lengths):,} persisted lengths from Arrow into memory for fast grouped sampling.")
+    return LengthGroupedSampler(
+        batch_size,
+        dataset=dataset,
+        lengths=lengths,
+        model_input_name=model_input_name,
+    )
 
 
 class DummyOptimizer(torch.optim.Optimizer):

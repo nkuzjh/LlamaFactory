@@ -30,7 +30,7 @@ from ...extras import logging
 from ...extras.constants import IGNORE_INDEX
 from ..callbacks import SaveProcessorCallback
 from ..fp8_utils import configure_fp8_environment, patch_accelerator_for_fp8, verify_fp8_status
-from ..trainer_utils import create_custom_optimizer, create_custom_scheduler
+from ..trainer_utils import create_custom_optimizer, create_custom_scheduler, create_fast_length_grouped_sampler
 
 
 if TYPE_CHECKING:
@@ -141,11 +141,22 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
         return super().create_scheduler(num_training_steps, optimizer)
 
     @override
-    def _get_train_sampler(self, *args, **kwargs) -> Optional["torch.utils.data.Sampler"]:
+    def _get_train_sampler(self, train_dataset=None) -> Optional["torch.utils.data.Sampler"]:
+        train_dataset = train_dataset if train_dataset is not None else self.train_dataset
         if self.finetuning_args.disable_shuffling:
-            return torch.utils.data.SequentialSampler(self.train_dataset)
+            return torch.utils.data.SequentialSampler(train_dataset)
 
-        return super()._get_train_sampler(*args, **kwargs)
+        sampler = create_fast_length_grouped_sampler(
+            self,
+            train_dataset,
+            self.args.train_batch_size * self.args.gradient_accumulation_steps,
+        )
+        return sampler if sampler is not None else super()._get_train_sampler(train_dataset)
+
+    @override
+    def _get_eval_sampler(self, eval_dataset) -> Optional["torch.utils.data.Sampler"]:
+        sampler = create_fast_length_grouped_sampler(self, eval_dataset, self.args.eval_batch_size)
+        return sampler if sampler is not None else super()._get_eval_sampler(eval_dataset)
 
     @override
     def compute_loss(self, model, inputs, *args, **kwargs):

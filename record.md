@@ -305,15 +305,62 @@ e1 LR=`2e-5`，e2/e3 LR=`1e-5`。
 `--gpus` 数量动态覆盖 GA：单卡 text/MM/downstream 为 `8/8/16`，双卡为 `4/4/8`，因此有效 global batch
 始终为 32/16/16，训练 steps、epochs 和 LR schedule 均不变。输出目录使用 `gbs32/gbs16`，不再绑定某个
 world size；`ddp_find_unused_parameters=false` 已显式冻结。
-已完成的 text8m `tokenized_path` 由所选进程只读复用，不会因为切换单双卡再执行 7,698,261 条 tokenizer；
-只有缓存缺失、损坏或路径/config 指纹改变时才会重新预处理。预测与评测仍用单卡。`select-final`、
+后续恢复计划使用带 `int32 length` 的 text8m `tokenized_path`，grouped sampler 直接读取长度列，不再在每次启动时
+扫描 7,698,261 条 `input_ids`。但 2026-08-13 复查发现当前同名目录被普通流程重新生成，实际缺少 `length`；
+launcher 现会阻断该伪 with-length cache，需迁移到新的输出目录并更新 YAML。通用 PT/SFT 工具为
+`scripts/build_tokenized_cache_with_length.py`：新实验 YAML
+配置 `tokenized_path`、`train_sampling_strategy: group_by_length` 和 `length_column_name: length` 后，可单独执行
+`python scripts/build_tokenized_cache_with_length.py --config <yaml>`；
+
+    新实验第一次生成缓存时，直接运行：
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+conda run -n llamafactory --no-capture-output python \
+scripts/build_tokenized_cache_with_length.py \
+--config examples/train_lora/<实验配置>.yaml \
+--num-proc 4
+```
+
+    迁移已有缓存时使用：
+```bash
+conda run -n llamafactory --no-capture-output python \
+scripts/build_tokenized_cache_with_length.py \
+--config examples/train_lora/<实验配置>.yaml \
+--source-cache <旧缓存目录> \
+--output-cache <新的带length缓存目录> \
+--num-proc 4
+```
+
+    只执行缓存加载和 schema 验证，不构建缓存，独立运行：
+```bash
+python scripts/build_tokenized_cache_with_length.py \
+--config <yaml> \
+--check-only
+```
+
+也可直接执行实验 launcher。launcher 在
+`--execute` 前发现目标不存在时，会以单进程自动预构建、复检，然后才启动单卡/DDP 训练。
+
+YAML 缓存策略无需加入框架外参数：保留 `length_column_name: length` 选择 with-length 自动构建/校验；删除该字段
+选择 LlamaFactory 普通缓存流程。dry-run 不构建，只报告 `build_required`；`--execute` 才会构建。已有目标若缺列
+不会被自动覆盖，必须用上面的迁移命令生成新目录。自动构建默认 `--cache-num-proc 4`，必要时可从 launcher
+命令行覆盖。
+
+2026-08-13 补充 `datasets==4.0.0` 兼容：其 `dataset["length"]` 是懒加载 `Column`，原生 grouped sampler 的
+随机标量索引会使 7,698,261 行排序长期停在 `0/250000`。PT/SFT trainer 现在只对“group_by_length 且实际存在
+length 列”的数据，将 Arrow scalar column 一次性转为 NumPy 数组；实测数组 `29.37 MiB`、转换 `0.061s`、
+全量 grouped index 构造 `4.384s`。普通无 length cache 仍由 Transformers 从 `input_ids` 推断，其他采样策略
+也继续走父类实现。已在修改前运行的 trainer 需要重启才能加载新代码。
+
+预测与评测仍用单卡。`select-final`、
 `approve-scale` 是有意保留的人工决策点，运行前应先阅读上一条评测产生的 metrics：
 
 如只使用 GPU 0，把任一训练命令的 `--gpus 0 1` 改为 `--gpus 0` 即可；launcher 会自动恢复单卡 GA，
 无需修改 YAML。例如 text8m 单卡 dry-run：
 
 ```bash
-python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action train --run text8m
+python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action train --run text8m --execute
 ```
 
 ```bash

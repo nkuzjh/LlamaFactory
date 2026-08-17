@@ -2,9 +2,13 @@
 # Use scripts/launch_bricknet_pt_exp2.py; direct execution bypasses project gates.
 
 ### model
+# model_name_or_path: Qwen/Qwen3.5-0.8B
+# trust_remote_code: true
+# flash_attn: auto
 model_name_or_path: Qwen/Qwen3.5-0.8B
 trust_remote_code: true
-flash_attn: auto
+flash_attn: fa2
+enable_liger_kernel: true
 
 ### method
 stage: pt
@@ -26,13 +30,17 @@ cutoff_len: 6401
 packing: false
 preprocessing_num_workers: 16
 dataloader_num_workers: 4
-tokenized_path: .llamafactory_cache/tokenized_dataset/PT-exp2-text7698261-qwen35-08b-len6401-nopack
+tokenized_path: .llamafactory_cache/tokenized_dataset/PT-exp2-text7698261-qwen35-08b-len6401-nopack-with-length
+# YAML cache policy: keeping this field makes the project launcher build/check
+# a persisted length column before training; remove it to use the standard cache flow.
+length_column_name: length
+# tokenized_path: .llamafactory_cache/tokenized_dataset/PT-exp2-text7698261-qwen35-08b-len6401-nopack
 
 ### output
 output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack
 logging_steps: 100
 save_strategy: steps
-save_steps: 5000
+save_steps: 5000 #2500 #5000
 save_total_limit: 3
 save_only_model: false
 plot_loss: true
@@ -40,16 +48,16 @@ report_to: none
 include_num_input_tokens_seen: true
 
 ### train
-per_device_train_batch_size: 4
-per_device_eval_batch_size: 4
+per_device_train_batch_size: 16 #16
+per_device_eval_batch_size: 1 #16
 # Dual-GPU default; launcher overrides this to 8 for a single GPU.
-gradient_accumulation_steps: 4
-learning_rate: 5.0e-5
-max_steps: 250000
+gradient_accumulation_steps: 1 #8 #1
+learning_rate: 5.0e-5 #1.4e-4 #5.0e-5
+max_steps: 250000 #30000 #250000
 lr_scheduler_type: cosine_with_min_lr
 lr_scheduler_kwargs:
   min_lr_rate: 0.01
-warmup_steps: 12500
+warmup_steps: 12500 #1500 #12500
 max_grad_norm: 1.0
 optim: adamw_torch
 adam_beta1: 0.9
@@ -65,4 +73,4 @@ seed: 42
 ### eval
 do_eval: true
 eval_strategy: steps
-eval_steps: 2500
+eval_steps: 2500 #1000 #2500

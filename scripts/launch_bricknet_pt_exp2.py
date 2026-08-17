@@ -20,6 +20,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BRICKNET_ROOT = Path("/home/jiahao/task/BrickNet")
@@ -42,6 +44,9 @@ FINAL_ALIAS = SAVE_ROOT / "PT-exp2"
 STAGE2_PREP = BRICKNET_ROOT / "data_preprocess/prepare_bricknet_stage2_sft.py"
 EVALUATOR = BRICKNET_ROOT / "scripts/evaluate_experiment.py"
 SUPPORTED_TRAIN_WORLD_SIZES = (1, 2)
+LENGTH_CACHE_BUILDER = ROOT / "scripts/build_tokenized_cache_with_length.py"
+DEFAULT_CACHE_BATCH_SIZE = 10_000
+DEFAULT_CACHE_NUM_PROC = 4
 
 
 @dataclass(frozen=True)
@@ -121,7 +126,7 @@ PREDICT_CONFIGS = {
 
 TRAIN_RUNS = {"text8m", "mm-e1", "mm-e2", "mm-e3", "exp4_4", "exp4_5", "exp4_6"}
 TRAIN_BATCH_TARGETS = {
-    "text8m": {"per_device_batch_size": 4, "global_batch_size": 32},
+    "text8m": {"per_device_batch_size": 16, "global_batch_size": 32},
     "mm-e1": {"per_device_batch_size": 2, "global_batch_size": 16},
     "mm-e2": {"per_device_batch_size": 2, "global_batch_size": 16},
     "mm-e3": {"per_device_batch_size": 2, "global_batch_size": 16},
@@ -238,6 +243,109 @@ def _metrics_path(run: str) -> Path:
     return BRICKNET_ROOT / "outputs_val/qwen35_08b" / RUNS[run].eval_name / "metrics.json"
 
 
+def _length_cache_check(config_path: Path) -> dict[str, Any]:
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    length_column = config.get("length_column_name")
+    if not length_column:
+        return {
+            "mode": "standard",
+            "enabled": False,
+            "eligible": True,
+            "build_required": False,
+        }
+
+    tokenized_path = config.get("tokenized_path")
+    if not tokenized_path:
+        return {
+            "mode": "with_length",
+            "enabled": True,
+            "eligible": False,
+            "build_required": False,
+            "error": "TOKENIZED_PATH_MISSING",
+        }
+    cache_path = Path(tokenized_path)
+    if not cache_path.is_absolute():
+        cache_path = ROOT / cache_path
+    info_path = cache_path / "train/dataset_info.json"
+    result = {
+        "mode": "with_length",
+        "enabled": True,
+        "eligible": False,
+        "build_required": not cache_path.exists(),
+        "path": str(cache_path),
+        "length_column": length_column,
+        "dataset_info": str(info_path),
+    }
+    if not cache_path.exists():
+        result["error"] = "TOKENIZED_CACHE_MISSING"
+        return result
+    if not info_path.is_file():
+        result["error"] = "TOKENIZED_TRAIN_DATASET_INFO_MISSING"
+        return result
+    try:
+        info = _json(info_path)
+    except (OSError, json.JSONDecodeError) as exc:
+        result["error"] = f"TOKENIZED_TRAIN_DATASET_INFO_INVALID: {exc}"
+        return result
+    features = info.get("features", {})
+    result["columns"] = sorted(features)
+    result["train_rows"] = info.get("splits", {}).get("train", {}).get("num_examples")
+    if length_column not in features:
+        result["error"] = "TOKENIZED_LENGTH_COLUMN_MISSING"
+        return result
+    result["eligible"] = True
+    return result
+
+
+def _length_cache_build_command(config_path: Path, args: argparse.Namespace | None = None) -> list[str]:
+    batch_size = args.cache_batch_size if args is not None else DEFAULT_CACHE_BATCH_SIZE
+    num_proc = args.cache_num_proc if args is not None else DEFAULT_CACHE_NUM_PROC
+    return [
+        "conda",
+        "run",
+        "-n",
+        "llamafactory",
+        "--no-capture-output",
+        "python",
+        str(LENGTH_CACHE_BUILDER),
+        "--config",
+        str(config_path),
+        "--batch-size",
+        str(batch_size),
+        "--num-proc",
+        str(num_proc),
+    ]
+
+
+def _prepare_length_cache(config_path: Path, args: argparse.Namespace) -> dict[str, Any]:
+    before = _length_cache_check(config_path)
+    result = {"before": before, "executed": False}
+    if not before["enabled"] or before["eligible"]:
+        result["action"] = "standard" if not before["enabled"] else "reuse"
+        result["after"] = before
+        return result
+    if not before["build_required"]:
+        raise RuntimeError(
+            "configured tokenized cache exists but is missing a valid length column; "
+            "migrate it to a different output path with build_tokenized_cache_with_length.py, "
+            "then update tokenized_path"
+        )
+
+    command = _length_cache_build_command(config_path, args)
+    result.update({"action": "build", "command": shlex.join(command)})
+    print(json.dumps({"event": "prepare_length_cache", **result}, ensure_ascii=False, indent=2), flush=True)
+    cache_env = os.environ.copy()
+    for key in ("FORCE_TORCHRUN", "NPROC_PER_NODE", "NNODES", "LOCAL_RANK", "RANK", "WORLD_SIZE"):
+        cache_env.pop(key, None)
+    subprocess.run(command, cwd=ROOT, env=cache_env, check=True)
+    after = _length_cache_check(config_path)
+    result.update({"executed": True, "after": after})
+    if not after["eligible"]:
+        raise RuntimeError(f"with-length cache failed post-build validation: {after}")
+    print(json.dumps({"event": "length_cache_ready", **result}, ensure_ascii=False, indent=2), flush=True)
+    return result
+
+
 def _check_common(run_name: str, action: str) -> tuple[list[str], dict[str, Any]]:
     run = RUNS[run_name]
     blockers: list[str] = []
@@ -266,6 +374,11 @@ def _check_common(run_name: str, action: str) -> tuple[list[str], dict[str, Any]
             blockers.append("PT_EXP2_REQUIRES_1_OR_2_VISIBLE_GPUS")
         elif resolved_uuids is not None and len(resolved_uuids) != world_size:
             blockers.append("TRAIN_GPU_SELECTOR_UNRESOLVED_OR_DUPLICATE")
+        checks["length_cache"] = _length_cache_check(config)
+        if checks["length_cache"]["enabled"]:
+            checks["length_cache"]["prepare_command"] = shlex.join(_length_cache_build_command(config))
+        if not checks["length_cache"]["eligible"] and not checks["length_cache"]["build_required"]:
+            blockers.append("TOKENIZED_LENGTH_CACHE_MISSING_OR_INVALID")
         output = SAVE_ROOT / run.output
         checks["output"] = str(output)
         checks["already_complete"] = _adapter_ready(output)
@@ -413,6 +526,8 @@ def _run_train_or_predict(args: argparse.Namespace) -> None:
         return
     if blockers:
         raise SystemExit("PT-exp2 launch blocked; resolve the reported gates first")
+    if args.action == "train":
+        _prepare_length_cache(CONFIG_ROOT / config_name, args)
     subprocess.run(command, cwd=ROOT, env=env, check=True)
 
 
@@ -601,6 +716,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--approve", action="store_true")
     parser.add_argument(
+        "--cache-batch-size",
+        type=int,
+        default=DEFAULT_CACHE_BATCH_SIZE,
+        help="rows per map batch when automatically building a with-length cache",
+    )
+    parser.add_argument(
+        "--cache-num-proc",
+        type=int,
+        default=DEFAULT_CACHE_NUM_PROC,
+        help="worker processes used by automatic with-length cache construction",
+    )
+    parser.add_argument(
         "--gpus",
         nargs="+",
         metavar="GPU",
@@ -612,6 +739,10 @@ def parse_args() -> argparse.Namespace:
         if len(selectors) != len(set(selectors)):
             parser.error("--gpus contains duplicate CUDA selectors")
         args.gpus = selectors
+    if args.cache_batch_size < 1:
+        parser.error("--cache-batch-size must be positive")
+    if args.cache_num_proc < 1:
+        parser.error("--cache-num-proc must be positive")
     if args.action == "predict" and args.run not in PREDICT_CONFIGS:
         parser.error(f"{args.run} has no predict configuration")
     return args

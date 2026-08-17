@@ -87,8 +87,37 @@ PT-exp2 训练支持单机单卡或双卡自适应。`--gpus 0` 使用单进程�
 epochs 或 LR schedule。输出目录以 `gbs32/gbs16` 命名，使两种模式共用同一 adapter 链。所有训练 YAML 显式设置
 `ddp_find_unused_parameters=false`。launcher 默认只报告检查和命令：
 
-text8m 已完成的 `tokenized_path` 由所选训练进程只读加载；只要该缓存完整且配置指纹未改变，不会
-重新运行 7,698,261 条 tokenizer。MM/downstream 首次缺少各自缓存时仍需预处理一次，之后复用同一路径。
+text8m 后续恢复配置为
+`.llamafactory_cache/tokenized_dataset/PT-exp2-text7698261-qwen35-08b-len6401-nopack-with-length`，并声明
+`length_column_name: length`。2026-08-13 检查发现该目录被普通 tokenization 流程重新生成，当前只有
+`input_ids/attention_mask`，因此 launcher 会用 `TOKENIZED_LENGTH_CACHE_MISSING_OR_INVALID` 阻断，而不会回退为
+逐条扫描 7,698,261 条 `input_ids`。应先迁移到一个新的目标目录并更新 YAML，不能把目录名中的
+`with-length` 当作缓存有效性的依据。
+
+通用 PT/SFT 预构建工具为 `scripts/build_tokenized_cache_with_length.py`。新实验 YAML 同时配置
+`tokenized_path`、`train_sampling_strategy: group_by_length`、`length_column_name: length` 后执行：
+
+```bash
+conda run -n llamafactory --no-capture-output python \
+  scripts/build_tokenized_cache_with_length.py --config examples/train_lora/<experiment>.yaml
+```
+
+若目标 cache 不存在，脚本复用 LlamaFactory 原生 PT/SFT tokenizer/template/processor 流程首次构建；若迁移
+已有 cache，则追加 `--source-cache <old-cache> --output-cache <new-cache>`。输出经临时目录构建、
+行数/schema/抽样 length 校验后才原子提升，已有无效目标不会被覆盖。
+
+YAML 同时控制 launcher 的缓存策略：存在 `length_column_name` 即为 `with_length` 模式；未配置该字段即为
+`standard` 模式。执行 `--action train --execute` 时，with-length 目标不存在则 launcher 先以单进程调用上述脚本，
+构建完成并复检后才启动单卡或 DDP 训练；有效目标直接复用；目标已存在但缺少该列则阻断并要求显式迁移。
+dry-run 只报告 `build_required` 和预构建命令，不修改缓存。自动构建默认使用 4 个进程，可用
+`--cache-num-proc` 和 `--cache-batch-size` 调整。
+
+`datasets==4.0.0` 的 `dataset["length"]` 返回懒加载 `Column`，Transformers 原生 `LengthGroupedSampler` 对它进行
+随机标量读取会使 7,698,261 行的 epoch 索引排序长时间停在 `0/250000`。PT/SFT trainer 现仅在
+`group_by_length` 且 cache 确实含配置的 length 列时，从 Arrow 一次性转换为连续 NumPy 数组后构造 sampler；
+当前 length 数组约 `29.37 MiB`，转换 `0.061s`，全量 epoch-0 分组索引测试约 `4.384s`。没有 length 的普通
+cache、非 grouped 策略和 `disable_shuffling` 均继续使用原有路径，不受该兼容影响。修改前已经启动的 Python
+进程不会热加载此兼容，必须重启训练进程后才生效。
 
 下列正式序列仍以本机双卡为默认。若只使用一张卡，将任一训练命令中的 `--gpus 0 1` 改为 `--gpus 0`；
 launcher 会自动选择单卡 GA。例如：
@@ -115,6 +144,8 @@ python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run exp4_4
 所有训练/推理/评测实际执行都需 `--execute`。最终 alias 与 scale gate 还需 `--approve`。launcher 检查：
 
 - corpus manifest、exact count、parse audit eligible 和 shard-only view；
+- YAML 含 `length_column_name` 时，cache 不存在可在 `--execute` 中自动预构建；已有 cache 必须在
+  `tokenized_path/train/dataset_info.json` 声明对应长度列；
 - MM manifest、逐轮 dataset 文件、逐轮 processor audit 和前置 adapter；
 - 显式选择一张或两张训练 GPU，并报告所选卡上的 compute process；GPU 占用 blocker 当前按临时决策关闭，执行前需人工确认所选卡空闲；
 - 输出目录不存在，防止覆盖或误续训；
