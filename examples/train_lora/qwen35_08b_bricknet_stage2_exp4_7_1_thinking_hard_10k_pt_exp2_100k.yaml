@@ -1,7 +1,8 @@
-### exp4_7_1: PT-exp2-100k -> Stage-2 Thinking-Hard 10k
+### exp4_7_1: PT-exp2-100k -> Stage-2 V2 Thinking-Hard Lean-State 10k
 # External-server PT-exp2 checkpoint trained for 100,000 steps (2x RTX PRO 6000).
-# Explicit <think>/<action> remains ordinary supervised assistant text and
-# Qwen native thinking stays disabled, identical to exp4_3.
+# Lean state-before reasoning is ordinary supervised assistant text and Qwen
+# native thinking stays disabled, identical to exp4_3_1. This variant replaces
+# the old Thinking-Hard data with the Stage-2 V2 Lean-State data.
 
 ### model
 model_name_or_path: Qwen/Qwen3.5-0.8B
@@ -23,7 +24,7 @@ freeze_vision_tower: true
 freeze_multi_modal_projector: true
 
 ### dataset
-dataset: BrickNet-Stage2-ThinkingHard-10k
+dataset: BrickNet-Stage2-ThinkingHard-V2-LeanState-10k
 dataset_dir: data
 media_dir: /home/jiahao/task/BrickNet
 template: qwen3_5_nothink
@@ -33,14 +34,14 @@ train_on_prompt: false
 packing: false
 preprocessing_num_workers: 16
 dataloader_num_workers: 4
-tokenized_path: .llamafactory_cache/tokenized_dataset/exp4_7_1-PT-exp2-100k-thinking-hard-10k-qwen35-08b-nothink-len16384
+tokenized_path: .llamafactory_cache/tokenized_dataset/exp4_7_1-PT-exp2-100k-thinking-hard-v2-lean-state-10k-qwen35-08b-nothink-len16384
 image_max_pixels: 589824
 image_min_pixels: 1024
 video_max_pixels: 65536
 video_min_pixels: 256
 
 ### output
-output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_10k_ep3_bs1_gbs16_lora64_len16384
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_gbs16_lora64_len16384
 logging_steps: 10
 save_steps: 250
 plot_loss: true

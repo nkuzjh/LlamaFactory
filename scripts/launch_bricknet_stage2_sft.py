@@ -175,19 +175,21 @@ EXPERIMENTS = {
     ),
     ("thinking-hard-pt-exp2-100k", "10k"): Experiment(
         experiment_id="exp4_7_1",
-        variant="thinking-hard",
+        variant="thinking-hard-v2-lean-state",
         scale="10k",
-        dataset="BrickNet-Stage2-ThinkingHard-10k",
-        train_file=ROOT / "data/bricknet_stage2/10k/BrickNet-Stage2-ThinkingHard.jsonl",
-        eval_file=VAL_ROOT / "datasets/BrickNet-Stage2-Thinking-Hard-VAL512-Eval.jsonl",
+        dataset="BrickNet-Stage2-ThinkingHard-V2-LeanState-10k",
+        train_file=ROOT
+        / "data/bricknet_stage2_v2/10k/BrickNet-Stage2-ThinkingHard-V2-LeanState.jsonl",
+        eval_file=STAGE2_V2_ROOT
+        / "validation/datasets/BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval.jsonl",
         train_config=CONFIG_ROOT
         / "qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml",
         predict_config=CONFIG_ROOT
         / "qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_predict_pt_exp2_100k.yaml",
         train_output=SAVE_ROOT
-        / "train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_10k_ep3_bs1_gbs16_lora64_len16384",
+        / "train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_gbs16_lora64_len16384",
         predict_output=SAVE_ROOT
-        / "eval_exp4_7_1_PT_exp2_100k_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20",
+        / "eval_exp4_7_1_PT_exp2_100k_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20",
         selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
         expected_train_count=10_000,
     ),

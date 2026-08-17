@@ -1,8 +1,8 @@
-### exp4_7_1: PT-exp2-100k + Thinking-Hard 10k, VAL512 prediction
+### exp4_7_1: PT-exp2-100k + Stage-2 V2 Thinking-Hard Lean-State 10k, VAL512 prediction
 
 ### model
 model_name_or_path: Qwen/Qwen3.5-0.8B
-adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/backup/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack-checkpoint-100000,saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_10k_ep3_bs1_gbs16_lora64_len16384
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/backup/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack-checkpoint-100000,saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_gbs16_lora64_len16384
 trust_remote_code: true
 flash_attn: auto
 
@@ -13,7 +13,7 @@ predict_with_generate: true
 finetuning_type: lora
 
 ### dataset
-eval_dataset: BrickNet-Stage2-ThinkingHard-VAL512-Eval
+eval_dataset: BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval
 dataset_dir: data
 media_dir: /home/jiahao/task/BrickNet
 template: qwen3_5_nothink
@@ -26,7 +26,7 @@ video_max_pixels: 65536
 video_min_pixels: 256
 
 ### output
-output_dir: saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_7_1_PT_exp2_100k_thinking_hard_10k_val512_in16384_out16384_p95_t1_k20
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_7_1_PT_exp2_100k_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20
 report_to: none
 
 ### eval
