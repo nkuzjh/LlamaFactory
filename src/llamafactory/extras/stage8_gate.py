@@ -28,9 +28,16 @@ STAGE8_TOKEN_MIX_TARGETS = {
     "R1-B": {"R1-S": Fraction(7, 10), "R1-C": Fraction(1, 5), "R1-B": Fraction(1, 10)},
 }
 STAGE8_MAIN_EVAL_MODES = {
+    "S8-ZS-Greedy": "a0-act-feedback",
+    "S8-ZS-DFS": "a1-feedback-search",
     "R1-S": "a0-act-feedback",
     "R1-C": "a0-act-feedback",
     "R1-B": "a1-feedback-search",
+}
+STAGE8_COMPARATOR_FOR_RUN = {
+    "R1-S": "S8-ZS-Greedy",
+    "R1-C": "S8-ZS-Greedy",
+    "R1-B": "S8-ZS-DFS",
 }
 
 
@@ -149,6 +156,14 @@ def resolve_stage8_eval_mode(run: str, requested_mode: str | None, *, ablation: 
     if mismatch and not ablation:
         raise ValueError(f"{run} main evaluation requires {main_mode}; pass --ablation for {mode}")
     return mode, mismatch
+
+
+def resolve_stage8_comparator(run: str) -> str:
+    """Return the separately named exp4_2 + stage8-act comparator for an R1 policy."""
+    try:
+        return STAGE8_COMPARATOR_FOR_RUN[run]
+    except KeyError as exc:
+        raise ValueError(f"{run} is not a Stage-8 trained policy") from exc
 
 
 def resolve_stage5_report_binding(build_report: dict[str, Any]) -> dict[str, str]:

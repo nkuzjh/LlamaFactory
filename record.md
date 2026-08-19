@@ -629,20 +629,34 @@ conda run -n llamafactory --no-capture-output python \
 ## exp4_2 直通 Stage5–8（action-only）
 
 固定链：`Qwen/Qwen3.5-0.8B + PT-exp1 + exp4_2`。以下命令已预填当前数据、adapter、VAL512 和报告路径，
-仍可直接执行或用于同协议复跑。截至 2026-08-15，Stage5 full replay 已通过，B1/V1/V2/A0/A1 的 VAL512
-推理、final/raw 双层统一评测和 seed-42、10,000 次 paired bootstrap 均已完成；冻结结果和指标解释见
+仍可直接执行或用于同协议复跑。Stage5 full replay 已通过；当前有效状态、冻结结果和指标解释见
 `/home/jiahao/task/BrickNet/BrickNet-MM Agentic LEGO Planner/Stage 6-7 Agentic Evaluation.md`。
 
-> **2026-08-16 协议异常修复后必须重跑。** 上面 2026-08-15 的五组 controller artifact 由旧 HF backend
-> 生成：它用 Qwen 原生 `apply_chat_template(enable_thinking=False)` 在 assistant 提示符后注入空 `<think>` 块、
-> 且未把模型默认 EOS(`<|endoftext|>`) 覆盖为 `<|im_end|>`，与 exp4_2 冻结的 LlamaFactory
-> `qwen3_5_nothink` 协议不等价；B1 还叠加了末尾空行 framing 拒绝。修复已合入
-> `BrickNet/scripts/run_bricknet_agentic_inference.py`（字节级 `qwen3_5_nothink` 渲染、EOS/pad 覆盖、图像像素预算、
-> 统一空白规范化）。2026-08-17 起随机种子也改为 exp4_2 方案：每个进程只设一次 `set_seed(42)`，已删除
-> `fork_rng` 和逐样本/逐调用的种子重新对齐，五个模式共用同一条连续随机流；下面五条命令**不需要修改**。
-> GPU 空闲后按原顺序重新执行即可原子覆盖旧的异常输出目录；
-> 随后按 Eval 小节重跑 `--action all --execute`（必要时 `--force`）重建 manifest/bootstrap。旧
-> `agentic_exp4_2_stage67_{manifest,statistics,results}` 仅作历史，重跑前不得引用其中的五组指标。
+> **2026-08-18 inference-contract v1 冻结后，B1/V1/V2/A0/A1 五组均必须重跑。** 旧 V1/V2 的 raw first-choice
+> 会在首选 proposal 被 verifier 拒绝时错误写为空串，且旧 V2/A1 在首批
+> 合法候选全部走入死路后不会继续该 state 的后续轮次，因而不是完整 bounded DFS；旧 A0/A1 还使用
+> `stage8-act` 替换了 exp4_2 system/user prompt，不满足“首轮与 V1 相同”的冻结定义。修复后的 Stage6–7 统一使用
+> `exp4_2-stepwise`：V1 静默重试，V2=V1+多候选完整 bounded DFS，A0 首轮与 V1 字节相同且之后显示
+> proposal/observation、只重试 rejected action，A1=A0+多候选 DFS、允许回退 accepted prefix。每个进程仍只在
+> 启动时执行一次 `set_seed(42)`。本轮按用户批准的临时覆盖策略，依次执行下面 B1→V1→V2→A0→A1 命令，直接
+> 原子覆盖五个既有 controller 目录；统一评测也强制重建无 `_v2` 后缀的 manifest/statistics/results。旧异常数值仍可从
+> 本文与统一结果账本的历史记录追溯，但本地异常 artifact 不另行保留。五组新推理和 Eval 完成前均不得进入当前排名。
+>
+> **输出已改为逐样本流式持久化。** 每条完成后立即写 audit body、final 和 diagnostic 三个 `*.partial.jsonl`，正常结束
+> 时补齐全局 hash/provenance，并按 final→diagnostic→audit 的顺序提升正式文件；不提供 resume。若进程中断，partial
+> 保留且 Eval 会 fail closed；重新执行同一条 controller 命令会清空该组旧 partial 并从第 0 条重新开始。
+
+```bash
+# 仅检查冻结 contract、输入、adapter、模型 revision、源码/软件 hash 和五组输出映射；不会加载模型或启动推理。
+/home/jiahao/task/LlamaFactory/tmp_bash/run_stage67_base_exp4_2.sh --preflight-only
+
+# 一键等待 GPU 0 空闲后串行覆盖 B1→V1→V2→A0→A1；每组后预检，最后强制重建全部评测与 bootstrap。
+/home/jiahao/task/LlamaFactory/tmp_bash/run_stage67_base_exp4_2.sh
+
+# 可选后台排队运行并把完整 stdout/stderr 写入固定日志；GPU 0 忙时 launcher 每 10 分钟报告一次状态。
+nohup /home/jiahao/task/LlamaFactory/tmp_bash/run_stage67_base_exp4_2.sh \
+  > /home/jiahao/task/LlamaFactory/tmp_bash/run_stage67_base_exp4_2.log 2>&1 &
+```
 
 ```bash
 # 进入 BrickNet 仓库，后续运行 Stage5–7 环境和 controller。
@@ -664,6 +678,8 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bric
   --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
   --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_b1/controller_audit.jsonl \
   --mode b1-post-hoc --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --model Qwen/Qwen3.5-0.8B --model-revision 2fc06364715b967f1860aea9cf38778875588b17 \
+  --contract-config /home/jiahao/task/BrickNet/configs/agentic_stage67_exp4_2.json \
   --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
 ```
 
@@ -674,47 +690,61 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bric
   --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
   --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_v1/controller_audit.jsonl \
   --mode v1-silent-retry --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --model Qwen/Qwen3.5-0.8B --model-revision 2fc06364715b967f1860aea9cf38778875588b17 \
+  --contract-config /home/jiahao/task/BrickNet/configs/agentic_stage67_exp4_2.json \
   --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
 ```
 
 ### V2
 ```bash
-# 运行 V2：逐 placement 静默 verifier DFS 与有限深度 rollback。
+# 运行 V2：V1 加多候选完整 bounded DFS；死分支回退后继续同 state 的剩余轮次。
 PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
   --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
   --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_v2/controller_audit.jsonl \
   --mode v2-silent-dfs --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --model Qwen/Qwen3.5-0.8B --model-revision 2fc06364715b967f1860aea9cf38778875588b17 \
+  --contract-config /home/jiahao/task/BrickNet/configs/agentic_stage67_exp4_2.json \
   --candidates-per-round 8 --max-rounds-per-state 4 --max-backtrack-depth 3 \
   --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
 ```
 
 ### A0
 ```bash
-# 运行 A0：向模型显式反馈五字段 rejection observation，不进行分支搜索。
+# 运行 A0：首轮与 V1 相同；之后显示 proposal/observation，只重试 rejected action，不回退 accepted prefix。
 PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
   --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
   --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_a0/controller_audit.jsonl \
-  --mode a0-act-feedback --backend hf --prompt-protocol stage8-act --seed 42 \
+  --mode a0-act-feedback --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --model Qwen/Qwen3.5-0.8B --model-revision 2fc06364715b967f1860aea9cf38778875588b17 \
+  --contract-config /home/jiahao/task/BrickNet/configs/agentic_stage67_exp4_2.json \
   --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
 ```
 
 ### A1
 ```bash
-# 运行 A1：显式反馈加 snapshot/rollback 分支搜索。
+# 运行 A1：A0 加多候选完整 bounded DFS，可回退 accepted prefix 并显示 rollback observation。
 PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python scripts/run_bricknet_agentic_inference.py \
   --input /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
   --output /home/jiahao/task/BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_a1/controller_audit.jsonl \
-  --mode a1-feedback-search --backend hf --prompt-protocol stage8-act --seed 42 \
+  --mode a1-feedback-search --backend hf --prompt-protocol exp4_2-stepwise --seed 42 \
+  --model Qwen/Qwen3.5-0.8B --model-revision 2fc06364715b967f1860aea9cf38778875588b17 \
+  --contract-config /home/jiahao/task/BrickNet/configs/agentic_stage67_exp4_2.json \
   --candidates-per-round 8 --max-rounds-per-state 4 --max-backtrack-depth 3 \
   --stage5-report /home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json
 ```
 
-每个 controller 命令自动同时生成 `<stem>.predictions.jsonl` 与
-`<stem>.raw_first_choice_predictions.jsonl`。
+每个 controller 命令自动同时生成 `<stem>.predictions.jsonl` 与一个未修复模型层文件：B1 为
+`<stem>.raw_first_choice_predictions.jsonl`（`full_path_raw`），V1/A0 为
+`<stem>.greedy_observed_candidate0_prefix_predictions.jsonl`，V2/A1 为
+`<stem>.search_observed_candidate0_prefix_predictions.jsonl`。stepwise 的 candidate 0 只是 batch 返回顺序，
+不代表概率最高；被拒绝时保留原文并立即终止，未被主 DFS 展开的 child 记为 partial，不启动 shadow rollout。
 
 ### Eval
-下面的统一入口会校验 512 条 ID/order、HF provenance、generation error
-和文件 hash，分别评测 final/raw 两层，生成 hash-frozen manifest，再运行 seed-42、10,000 次 paired bootstrap。
+下面的统一入口会校验 512 条 ID/order、HF provenance、generation error、文件 hash、首轮 exp4_2 prompt 字节、
+完整 chat turn framing、silent-feedback 隔离、accepted-prefix prefill，并从 audit 逐行重建 final 与对应 observed-prefix
+文本，分别评测 `final_system` 与分模式诊断层 artifact。统计层只对配置显式允许的 layer 运行
+seed-42、10,000 次 paired bootstrap：
+V2→A1 只比较 `final_system`，不对 `search_observed_candidate0_prefix` 形成 paired 主结论。
 
 ```bash
 # 进入 BrickNet；后续所有 Stage6–7 评测命令均从这里执行。
@@ -728,12 +758,12 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
 PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   scripts/evaluate_bricknet_agentic_stage67.py --action all
 
-# 一键生成 B1/V1/V2/A0/A1 的 final/raw 全指标、冻结 manifest、bootstrap 统计和 Markdown 结果表。
+# 一键强制重建五组 final/诊断层全指标、manifest、按层 bootstrap 统计和 Markdown 结果表。
 BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
 PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
-  scripts/evaluate_bricknet_agentic_stage67.py --action all --execute
+  scripts/evaluate_bricknet_agentic_stage67.py --action all --execute --force
 
-# 可选：仅补跑 V2 final 层；已有同 input hash 的派生产物会复用，确需重建时追加 --force。
+# 可选：仅强制重建 V2 final 层；当前 config 的 derived_evaluation=force-rebuild 会自动传递 --force。
 BRICKNET_DATA=/home/jiahao/task/BrickNet/data/bricknet_datasets \
 PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   scripts/evaluate_bricknet_agentic_stage67.py --action evaluate --runs v2 --layers final --execute
@@ -747,17 +777,17 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   scripts/evaluate_bricknet_agentic_stage67.py --action summarize --execute
 ```
 
-统一配置位于 `/home/jiahao/task/BrickNet/configs/agentic_stage67_exp4_2.json`；最终产物为
+统一配置位于 `/home/jiahao/task/BrickNet/configs/agentic_stage67_exp4_2.json`；最终产物仍为
 `agentic_exp4_2_stage67_manifest.json`、`agentic_exp4_2_stage67_statistics.json` 和
-`agentic_exp4_2_stage67_results.md`。主选择指标是 evaluator 的 pose-aware `task_strict_success`，次指标为
+`agentic_exp4_2_stage67_results.md`，本轮直接覆盖同名旧文件。主选择指标是 evaluator 的
+pose-aware `task_strict_success`，次指标为
 `dense_reward`，最后比较 token/latency/verifier-call 成本；`controller_hard_valid_success` 只证明系统输出满足
 硬约束，不能代替 task strict success。
 
 ### Experiments Results
-2026-08-15 结论（V2 final strict=`20/512 (3.906%)`、dense=`0.567096` 最佳；A0/A1 显著劣于 V1/V2 等）
-已因上述 `<think>`/EOS/framing 协议异常而**暂缓**，重跑前不得作为相对 exp4_2 的证据。修复协议重跑五组
-controller 并重建 manifest/bootstrap 后，再按 task strict → dense → 成本的顺序重新下结论；若届时 A0/A1
-仍显著退化，下一步应先训练 R1-S 10k 交互协议 cold start，而不是把未训练的显式 feedback 设为默认。
+B1/V1/V2/A0/A1 的旧本地 artifact 均不满足新冻结的完整 inference contract；五组重跑并重建
+manifest/bootstrap 前，不得引用旧相对结论；重跑后再按
+task strict → dense → hard-valid coverage → 成本的顺序更新统一结果账本。
 
 
 ### exp4_2 固定原始预测重放（B1 同款 post-hoc）
@@ -895,14 +925,27 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
 python scripts/launch_bricknet_stage8_act_sft.py --run R1-S --scale 10k --refresh-initialization-audit
 # 所有 gate 通过后正式训练 R1-S 10k 新 LoRA。
 python scripts/launch_bricknet_stage8_act_sft.py --run R1-S --scale 10k --execute
-# 检查 R1-S 使用 matched A0 的 VAL512 controller 评测命令。
+# 检查独立命名的 exp4_2 stage8-act 贪心比较器及其 Stage5/adapter/output gates。
+python scripts/launch_bricknet_stage8_controller_eval.py --run S8-ZS-Greedy
+# 所有 gate 通过后生成 S8-ZS-Greedy VAL512 final/raw artifact。
+python scripts/launch_bricknet_stage8_controller_eval.py --run S8-ZS-Greedy --execute
+# 检查 R1-S 与 S8-ZS-Greedy 的 controller/prompt/预算绑定及比较器 artifact。
 python scripts/launch_bricknet_stage8_controller_eval.py --run R1-S
-# 正式执行 R1-S matched A0 VAL512 controller 评测。
+# 所有 gate 通过后正式执行 R1-S VAL512 Stage8-act controller 评测。
 python scripts/launch_bricknet_stage8_controller_eval.py --run R1-S --execute
+# 进入 BrickNet，检查成对 artifact 并预览 final/raw、pose-aware 评测和 paired bootstrap 命令。
+cd /home/jiahao/task/BrickNet
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/evaluate_bricknet_agentic_stage8.py --treatment R1-S --action all
+# 执行两层统一评测、冻结 hash manifest 并运行 seed-42 的 10,000 次 paired bootstrap。
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/evaluate_bricknet_agentic_stage8.py --treatment R1-S --action all --execute
+# 返回 LlamaFactory 继续后续 Stage8 命令。
+cd /home/jiahao/task/LlamaFactory
 ```
 
 ### R1-C
-R1-S matched A0 gate 获批后，按以下顺序收集并构造 R1-C；collector 在每个 GT prefix 只采一个真实 proposal，
+R1-S 通过 `S8-ZS-Greedy` paired promotion gate 后，按以下顺序收集并构造 R1-C；collector 在每个 GT prefix 只采一个真实 proposal，
 accepted proposal 会 rollback 后继续 GT teacher forcing，最终每个 source 最多保留两个稳定 hash 选择的 rejection。
 
 #### R1-C 10k
@@ -969,14 +1012,23 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/llamafactory/bin/python \
 python scripts/launch_bricknet_stage8_act_sft.py --run R1-C --scale 10k --refresh-initialization-audit
 # 所有 gate 通过后从 exp4_2 独立初始化并正式训练 R1-C。
 python scripts/launch_bricknet_stage8_act_sft.py --run R1-C --scale 10k --execute
-# 检查 R1-C 使用 matched A0 的 VAL512 controller 评测命令。
+# 检查 R1-C 与已有 S8-ZS-Greedy artifact 的 controller/prompt/预算绑定。
 python scripts/launch_bricknet_stage8_controller_eval.py --run R1-C
-# 正式执行 R1-C matched A0 VAL512 controller 评测。
+# 所有 gate 通过后正式执行 R1-C VAL512 Stage8-act controller 评测。
 python scripts/launch_bricknet_stage8_controller_eval.py --run R1-C --execute
+# 进入 BrickNet，检查 R1-C 与 S8-ZS-Greedy 的成对评测契约。
+cd /home/jiahao/task/BrickNet
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/evaluate_bricknet_agentic_stage8.py --treatment R1-C --action all
+# 执行 final/raw 统一评测、hash 冻结和 seed-42/10,000 paired bootstrap。
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/evaluate_bricknet_agentic_stage8.py --treatment R1-C --action all --execute
+# 返回 LlamaFactory 继续后续 Stage8 命令。
+cd /home/jiahao/task/LlamaFactory
 ```
 
 ### R1-B
-R1-S 的 matched A0 VAL512 未改善前停止。R1-C 训练完成并通过 matched A0 gate 后，才检查 A1 日志是否达到
+R1-S 的 `S8-ZS-Greedy` gate 未改善前停止。R1-C 训练完成并通过同一比较器 gate 后，才检查修复后 A1 日志是否达到
 1,000 rollback transitions/100 sources 以构造 R1-B。三个 launcher 均会从 exp4_2 新建 LoRA，并拒绝把
 R1-S/R1-C 串行当作下一实验初始化。完成真实 A1 日志转换、R1-B 70/20/10 token-mix 和两遍切窗审计后，入口为：
 
@@ -987,9 +1039,25 @@ cd /home/jiahao/task/LlamaFactory
 python scripts/launch_bricknet_stage8_act_sft.py --run R1-B --scale 10k --refresh-initialization-audit
 # 所有条件满足后从 exp4_2 独立初始化并正式训练 R1-B。
 python scripts/launch_bricknet_stage8_act_sft.py --run R1-B --scale 10k --execute
-# 正式执行 R1-B matched A1 VAL512 controller 评测。
+# 检查独立命名的 exp4_2 stage8-act DFS 比较器及其 Stage5/adapter/output gates。
+python scripts/launch_bricknet_stage8_controller_eval.py --run S8-ZS-DFS
+# 所有 gate 通过后生成 S8-ZS-DFS VAL512 final/raw artifact。
+python scripts/launch_bricknet_stage8_controller_eval.py --run S8-ZS-DFS --execute
+# 检查 R1-B 与 S8-ZS-DFS 的 controller/prompt/预算绑定及比较器 artifact。
+python scripts/launch_bricknet_stage8_controller_eval.py --run R1-B
+# 所有 gate 通过后正式执行 R1-B VAL512 Stage8-act DFS 评测。
 python scripts/launch_bricknet_stage8_controller_eval.py --run R1-B --execute
+# 进入 BrickNet，检查 R1-B 与 S8-ZS-DFS 的成对评测契约。
+cd /home/jiahao/task/BrickNet
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/evaluate_bricknet_agentic_stage8.py --treatment R1-B --action all
+# 执行 final/raw 统一评测、hash 冻结和 seed-42/10,000 paired bootstrap。
+PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/evaluate_bricknet_agentic_stage8.py --treatment R1-B --action all --execute
+# 返回 LlamaFactory 保持本文后续命令的默认目录。
+cd /home/jiahao/task/LlamaFactory
 ```
 
 这些入口在 rejection/rollback 数据、80/20 或 70/20/10 supervised-token mix、matched max_steps、Stage5 report、
-processor、initialization 和 dataset hash 任一条件缺失时都会退出，不会静默训练。
+processor、initialization 和 dataset hash 任一条件缺失时都会退出，不会静默训练。Stage8 成对评测还会在
+experiment ID、adapter 顺序、首轮 prompt、sampling、seed、预算、Stage5 provenance 或 512 条顺序不一致时拒绝算分。

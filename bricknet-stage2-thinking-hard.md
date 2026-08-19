@@ -1,9 +1,8 @@
 # BrickNet Stage 2 Thinking-Hard SFT Runbook
 
-状态（2026-08-13 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3` 四个训练和 VAL512
-512/512 推理和全指标均完成。paired 结果显示 Thinking-Hard 只改善 clean/collision-prefix，parsable、dense、
-strict success 和图文指标均低于 Control；T1-10k 人工推广 gate 未批准。新增的 `exp4_3_1` 是封顶 10k、独立数据链的
-Lean-State 诊断；正式数据和两份真实 processor audit 已通过，训练 dry-run ready；训练、推理和评测尚未执行。
+状态（2026-08-18 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3` 与 Lean-State V2
+`exp4_3_1` 的训练、VAL512 推理和统一评测均已完成。T1 和 Lean-State 都未显示相对 Control 的主指标优势，
+推广 gate 未批准，50k/all 保持关闭。所有数值和 artifact hash 只在 [统一实验结果账本](experiment_results.md) 维护。
 
 原 Stage 2 比较严格同 ID 的两组数据，新增 V2 仍复用相同 10k ID：
 
@@ -233,20 +232,11 @@ launcher 会根据 experiment 自动传入正确的 `--variant`。手工调用 e
 
 ## 5. 当前完成度与等待项
 
-四个实验均已通过既有数据/manifest/token/launcher gate并完成训练：
-
-1. `exp4`：train loss `0.1737931`，VAL512 512/512 推理完成；
-2. `exp4_1`：train loss `0.0859583`，VAL512 512/512 推理完成；
-3. `exp4_2`：train loss `0.1726632`，VAL512 512/512 推理和全指标完成；parsable
-   `382/512 (74.61%)`、clean `93/512 (18.16%)`、dense reward `0.58159`、strict success `16/512 (3.12%)`；
-4. `exp4_3`：train loss `0.0433687`，VAL512 512/512 推理完成；strict extractor 得到
-   `360/512 (70.31%)` 完整合法 trace/path，512 条均有非空 extracted prefix；全指标为 clean
-   `101/512 (19.73%)`、Collision `6.1738`、PE/SigLIP2/VQAScore `0.2799/0.7818/0.7486`、Inventory F1
-   `0.8812`、dense reward `0.57395`、strict success `13/512 (2.54%)`。
-
-相对 exp4_2，exp4_3 的 clean `+1.56 pp`、collision-prefix `+0.0133`，但 parsable `-4.30 pp`、dense reward
-`-0.00765`、strict success `-0.59 pp`，PE/SigLIP2/VQA 也较低，因此没有总体优势。Stage 2 原路线的 50k/all
-继续暂停；新 PT-exp2 分支另从 `exp4_4` 10k 开始，见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
+`exp4`、`exp4_1`、`exp4_2`、`exp4_3` 和 `exp4_3_1` 均已通过对应数据/manifest/token/launcher gate 并完成训练；
+正式 10k 组均完成原始 VAL512 的 512/512 推理和统一评测。当前结论是旧 T1 未形成总体优势，Lean-State V2
+恢复部分旧 T1 退化但仍未超过 `exp4_2` 主指标。完整 train loss、结构、图文、alignment 和 strict 数值见
+[统一实验结果账本](experiment_results.md)。Stage 2 的 50k/all 继续暂停；新 PT-exp2 分支另从 `exp4_4` 10k 开始，
+见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
 
 ## 6. exp4_3_1 / Stage2 V2 Lean-State
 
@@ -290,6 +280,6 @@ python scripts/evaluate_bricknet_stage2.py --experiment exp4_3_1
 python scripts/evaluate_bricknet_stage2.py --experiment exp4_3_1 --execute
 ```
 
-当前 V2 data/report 和两份 token report 已通过，train dry-run 为 `ready=true, blockers=[]`；predict 在训练前只应
-报告 `WAIT_STAGE2_TRAIN`。不得删除该 gate 或用旧 T1 token report 代替。该实验只运行 10k，不添加
+V2 data/report、两份 token report、训练、预测、strict extraction 和统一评测均已完成。以上命令保留作复现入口，
+不得对现有输出目录误覆盖；重新执行前应使用新 experiment ID/输出路径或明确的恢复策略。该实验只运行 10k，不添加
 overfit511、50k 或 all 配置。

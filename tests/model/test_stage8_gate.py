@@ -8,6 +8,7 @@ from llamafactory.extras.stage8_gate import (
     evaluate_supervised_token_mix,
     file_sha256,
     resolve_stage5_report_binding,
+    resolve_stage8_comparator,
     resolve_stage8_eval_mode,
 )
 
@@ -123,6 +124,8 @@ def test_stage8_build_report_blocks_smoke_override_and_dataset_drift(tmp_path):
 
 
 def test_stage8_main_eval_modes_and_explicit_ablation_gate():
+    assert resolve_stage8_eval_mode("S8-ZS-Greedy", None, ablation=False) == ("a0-act-feedback", False)
+    assert resolve_stage8_eval_mode("S8-ZS-DFS", None, ablation=False) == ("a1-feedback-search", False)
     assert resolve_stage8_eval_mode("R1-S", None, ablation=False) == ("a0-act-feedback", False)
     assert resolve_stage8_eval_mode("R1-C", None, ablation=False) == ("a0-act-feedback", False)
     assert resolve_stage8_eval_mode("R1-B", None, ablation=False) == ("a1-feedback-search", False)
@@ -133,6 +136,18 @@ def test_stage8_main_eval_modes_and_explicit_ablation_gate():
     else:
         raise AssertionError("mode mismatch was not blocked")
     assert resolve_stage8_eval_mode("R1-B", "a0-act-feedback", ablation=True) == ("a0-act-feedback", True)
+
+
+def test_stage8_trained_policies_resolve_separately_named_comparators():
+    assert resolve_stage8_comparator("R1-S") == "S8-ZS-Greedy"
+    assert resolve_stage8_comparator("R1-C") == "S8-ZS-Greedy"
+    assert resolve_stage8_comparator("R1-B") == "S8-ZS-DFS"
+    try:
+        resolve_stage8_comparator("S8-ZS-Greedy")
+    except ValueError as exc:
+        assert "not a Stage-8 trained policy" in str(exc)
+    else:
+        raise AssertionError("a comparator cannot resolve itself as a trained policy")
 
 
 def test_stage8_eval_resolves_fixed_stage5_report_and_rejects_hash_drift(tmp_path):

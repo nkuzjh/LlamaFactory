@@ -51,9 +51,12 @@ def compute_metrics(sample):
 
     metric_result = {}
     for k, v in result.items():
-        metric_result[k] = round(v["f"] * 100, 4)
+        # Keep a stable Arrow schema across multiprocessing shards. Some metric
+        # libraries return the integer ``0`` for empty inputs, while non-empty
+        # inputs return floats; datasets.map() cannot concatenate those shards.
+        metric_result[k] = float(round(v["f"] * 100, 4))
 
-    metric_result["bleu-4"] = round(bleu_score * 100, 4)
+    metric_result["bleu-4"] = float(round(bleu_score * 100, 4))
 
     return metric_result
 
