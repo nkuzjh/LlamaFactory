@@ -558,6 +558,9 @@ test -d "${MIG_NEW_TASK_ROOT}/BrickNet/data/bricknet_datasets/ldraw"
 不要迁移完整 Hugging Face cache，也不要迁移 PT-merged 模型。只下载固定 revision：
 
 ```bash
+# 下载hf cli
+curl -LsSf https://hf.co/cli/install.sh | bash
+
 conda run -n swift hf download \
   Qwen/Qwen3.5-0.8B \
   --revision 2fc06364715b967f1860aea9cf38778875588b17
