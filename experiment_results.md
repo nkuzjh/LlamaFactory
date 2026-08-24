@@ -1,6 +1,6 @@
 # 实验进度与结果汇总
 
-更新时间：2026-08-19 +08:00
+更新时间：2026-08-21 +08:00
 
 本文档是 BrickNet-MM 三仓库**唯一人工维护的实验结果账本**，统一记录 LlamaFactory PT/SFT、BrickNet
 Stage5–8 agentic inference/SFT 和 ms-swift GRPO。`validated/frozen` 结果可用于当前结论；`diagnostic` 只用于定位；
@@ -15,19 +15,24 @@ Stage5–8 agentic inference/SFT 和 ms-swift GRPO。`validated/frozen` 结果�
 
 - Stage 0–1 已完成；mixed PT-exp1 final 已作为 Stage2 的共同初始化，66,456 条 Control/Thinking-Hard 数据与
   processor gate 已通过。
-- Stage2 的 `exp4`–`exp4_3` 以及 Lean-State V2 `exp4_3_1` 训练、VAL512 推理和统一评测均已完成。旧
-  Thinking-Hard 未优于 NonThinking-Control；Lean-State 恢复部分退化但主指标仍未超过 `exp4_2`，两条 Thinking
-  路线均不扩 50k/all。
+- Stage2 的 `exp4`–`exp4_3`、Lean-State V2 `exp4_3_1` 以及外部 PT-exp2-100k 下游
+  `exp4_4_1/exp4_7_1` 训练、VAL512 推理和统一评测均已完成。旧 Thinking-Hard 未优于
+  NonThinking-Control；两个 Lean-State 实验的 strict trace-format 合规性均很低，所有 reasoning
+  路线均保持 hold，不扩 50k/all。
 - Stage3 v002 Pilot 机器标注已完成 252/252，人工审计仍未批准；Stage3 与 PT-exp2 保留为研究支线，不是当前
-  action-only 主线的前置条件。PT-exp2 数据与配置已就绪，但 text8m/MM e1/e2/e3 均未训练；外部 PT-exp2-100k
-  adapter 尚未同步到规范路径。
+  action-only 主线的前置条件。PT-exp2 text8m 已完成 250,000/250,000 steps；MM e1/e2/e3、三轮
+  VAL512 和 final alias 尚未完成。冻结 v1 的首次 e1 启动在 Arrow 数据物化时因 MM/replay `meta`
+  异构失败，未进入 tokenization/optimizer；该次运行只作 `invalidated` provenance。独立 v2-no-meta
+  投影已通过 Arrow、真实 LlamaFactory loader 和三轮全池零截断 gate，e1 `ready=true`，但正式训练未启动。
+  外部 100k-step checkpoint 已同步到当前 YAML 实际使用的
+  `backup/...-checkpoint-100000`，不得将它写成主链 `PT-exp2` final alias。
 - Stage5 full-pool replay 已通过：66,456/66,456 reference、1,751,435 个 GT action、0 failure。
-- Stage6–7 的模板/EOS/RNG/framing 修复仍有效。2026-08-18 定义审计发现旧 V1/V2
-  raw first-choice 被 verifier rejection 擦除、V2/A1 的 DFS 不完整、A0/A1 首轮使用了替换 exp4_2 prompt 的
-  `stage8-act`。实现已修复，并冻结 inference-contract v1；B1/V1/V2/A0/A1 五组等待 VAL512 重跑，旧五组结果不得引用。
-  新协议保留被拒 candidate-0 文本后立即终止诊断前缀，不运行 shadow rollout；V2→A1 只在
-  `final_system` 层做 paired 主比较。推理输出已改为无 resume 的逐样本三路 partial 流式持久化，正常结束以 audit-last
-  提升正式 artifact；Stage6/Stage8 preflight 拒绝任何残留 partial。
+- Stage6–7 的 B1/V1/V2/A0 已按 2026-08-20 new-server contract-v1 完成 512/512 正式推理，四组
+  controller preflight 和八套 final/diagnostic 评测均通过。原 A1 因把完整失败子树反复带回父 prompt，两次都在
+  row index 2 的 prefill 发生 CUDA OOM，仅留下 2-row partial，不是正式 artifact。2026-08-21 用户批准仅修订并
+  同名覆盖 A1：父节点每个失败 direct child 只接收一条摘要，完整子树只进 audit，实际 processor input prompt
+  硬限 16,384 tokens；B1/V1/V2/A0 保持原 contract/provenance，不重跑 V2，也不重跑五组。新 A1 完成前
+  五组 manifest/bootstrap 仍 pending。
 - Stage8 的 R1-S protocol/window 实现和历史 64-source 切窗测试已验证；当前重新绑定 Stage5 full report 的 smoke
   artifact 仍等待 supervised-token/token-mix audit，状态为 `training_eligible=false`。`stage8-act` 比较器已独立命名为
   `S8-ZS-Greedy` / `S8-ZS-DFS`，但尚无正式 VAL512 分数。下一步是刷新 token gate，再物化并
@@ -38,16 +43,23 @@ Stage5–8 agentic inference/SFT 和 ms-swift GRPO。`validated/frozen` 结果�
 
 | 对象 | 状态 | 是否进入当前比较 | 说明 |
 | --- | --- | --- | --- |
-| Stage6–7 contract-v1 B1/V1/V2/A0/A1 | `implementation + streaming fixed / five-run rerun pending` | 否 | 完整 inference contract、新诊断层、完整 DFS、逐样本持久化与 exact-reconstruction preflight 已实现；等待五组原路径覆盖重跑 |
+| Stage6–7 contract-v1 B1/V1/V2/A0 | `validated/frozen; adopted` | 是（单组结果） | 四组各 512/512，旧 canonical contract=`76067f38…f825`，controller preflight 与八套已有评测 complete；原 provenance/文件 hash 不改 |
+| Stage6–7 compact A1 | `implementation/refreeze complete; A1-only rerun pending` | 否 | 同名覆盖原 A1；direct-child 单摘要、完整子树 audit-only、实际 processor prompt 16,384-token 硬上限；不触发 V2/五组重跑 |
+| Stage6–7 A1 v1 两次 OOM partial | `invalidated / non-artifact` | 否 | 两次均在 row index 2 prefill OOM，仅 2 条 partial；不能补齐、不能进入评测或排名 |
 | Stage6–7 2026-08-18 旧 B1 | `superseded by contract-v1` | 否 | 曾通过上一版 preflight，但 audit 未嵌入当前完整 contract；不能作为当前 B1 |
 | Stage6–7 2026-08-18 旧 V1/V2/A0/A1 | `invalidated` | 否 | raw-gating、非完整 DFS、A0/A1 base-prompt 替换；旧 artifact 只保留故障 provenance |
 | Stage6–7 2026-08-15 B1/V1/V2/A0/A1 | `invalidated` | 否 | native Qwen 空 think、错误 EOS；B1 另有 framing 空串写回。只保留故障 provenance |
 | PT-exp0 固定 `"a"` 无条件推理 | `invalidated` | 否 | 与 MM-PT 的 image+inventory 训练协议不匹配，0% 不能解释为模型能力 |
 | exp4_3_1 Lean-State | `validated/hold; trace warning` | 是 | path 指标齐全，但 strict trace-format 仅 38/512；无主指标优势，不推广或扩容 |
+| exp4_4_1 PT-exp2-100k + Control | `validated/hold` | 是 | 训练 1,875/1,875 steps、推理/评测各 512/512；strict 8/512，不替换 exp4_2 主线 |
+| exp4_7_1 PT-exp2-100k + Lean-State | `validated/hold; trace warning` | 是 | 训练 1,875/1,875 steps、推理/评测各 512/512；strict 12/512，strict trace-format 仅 31/512 |
+| PT-exp2-text8m 250k | `validated; MM pending` | 仅作为 MM e1 初始化 | 250,000/250,000 steps、final adapter/train/eval artifact 完整；不能写成整个 PT-exp2 完成 |
+| PT-exp2-mm v1 mixed-meta e1 启动 | `invalidated` | 否 | 在第一条 replay 的 Arrow cast 阶段失败；未生成 tokenized cache/adapter，未启动 optimizer；v1 数据、入口和日志原样保留 |
+| PT-exp2-mm v2-no-meta 数据/loader/token gate | `validated / training pending` | 仅作为训练 gate | 三份训练投影仅移除 `meta`，ordered IDs 与 v1 一致；Arrow 完整物化、真实 loader 和三轮全池 audit 均通过；e1 `ready=true` |
 | Stage8 R1-S 64-source | `protocol validated / artifact blocked` | 仅协议证据 | 当前 artifact 等待 supervised-token/token-mix gate；不是正式训练结果 |
 
-默认情况下异常数字留在历史记录中且不与有效实验混排；本轮 Stage6–7 按用户批准的临时例外直接覆盖本地五组
-controller/eval artifact，账本仍保留事故说明，直到新结果写回本节。
+默认情况下异常数字留在历史记录中且不与有效实验混排。本轮 Stage6–7 的临时覆盖权限严格缩小为 A1 官方目录；
+B1/V1/V2/A0 及其八套评测按冻结 hash 采用，任何 A1 启动命令都不得覆盖或重跑这四组。
 
 ## 统计口径
 
@@ -157,7 +169,9 @@ size 2、gradient accumulation 8、learning rate `5e-5` 和 cosine scheduler。
 `cutoff_len=16384`、`packing=false`、`train_on_prompt=false`，推理 `max_new_tokens=16384`。显式 `<think>` 是 assistant
 监督文本，不叠加 Qwen 原生 thinking 模板。无思考对照统一命名为 `NonThinking-Control`。Stage 0 mixed PT-exp1
 final 已完成；`exp4`–`exp4_3` 四个训练和原始 VAL512 的 512/512 推理均已完成，`exp4_2/exp4_3` 全指标已完成。
-Lean-State V2 `exp4_3_1` 也已完成训练、strict extraction 和统一 VAL512 评测。
+Lean-State V2 `exp4_3_1` 也已完成训练、strict extraction 和统一 VAL512 评测。外部
+100k-step PT checkpoint 下游的 `exp4_4_1/exp4_7_1` 同样已完成训练、512/512 推理、strict
+extraction 和全指标评测；该 checkpoint 是独立支线，不是未训练的 text8m/MM-e1/e2/e3 主链 final。
 原 Stage 2 的 50k/all 继续暂停。新增 PT-exp2 性能支线使用独立
 `PT-exp2-text8m/mm-e1/e2/e3` 命名；下游不做 VAL511，版本从 `exp4_4` 10k 继续递增到 `exp4_5` 50k、
 `exp4_6` all，详情见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
@@ -168,8 +182,8 @@ Lean-State V2 `exp4_3_1` 也已完成训练、strict extraction 和统一 VAL512
 | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | --- |
 | PT-exp0 | LlamaFactory | `train_PT_exp0_qwen35_08b_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-PT | 135,051 | 3 | MM-PT：图像+inventory → path | 0.1507 | 完成并评测 |
 | PT-exp1 | LlamaFactory | `train_PT_exp1_qwen35_08b_bricknet_text270k_mmpt135k_ep1_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet text PT + BrickNet-MM-PT | 405,153 | 1 | 固定曝光预算的 text+MM mixed PT | 0.0683 | 完成；final 已作为 Stage 2 共同初始化 |
-| PT-exp2-text8m | LlamaFactory | `train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack` | Qwen3.5-0.8B | first-round + cross-pool exact-dedup text path PT | 7,698,261 | 250k steps（约 1.03919 epoch） | 单/双卡自适应；BS4；GA8/4；path+EOS、6,401-token non-packed full-sequence PT、global batch 32 | - | 未训练；source/shard/VAL1000、全量 parse 和 train view 完成；10k collision 94/10,000 仅作 provenance；执行前人工确认所选卡空闲 |
-| PT-exp2-mm-e1/e2/e3 | LlamaFactory | `train_PT_exp2_mm_{e1,e2,e3}_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400` | PT-exp2-text8m → e1 → e2 adapter | all MM-PT + 三组不重叠 1:1 text replay | 150,668 / 150,637 / 150,718 | 各 1 epoch | 单/双卡自适应、BS2、GA8/4、global batch 16；三次顺序 multimodal consolidation；每轮后独立 VAL512 推理 | - | 三组数据与 processor zero-error/zero-truncation gate 完成；e1 等待 text8m adapter |
+| PT-exp2-text8m | LlamaFactory | `train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack` | Qwen3.5-0.8B | first-round + cross-pool exact-dedup text path PT | 7,698,261 | 250k steps（约 1.03919 epoch） | 实际双卡 BS16、GA1、global batch 32；path+EOS、6,401-token non-packed full-sequence PT；目录中的 `bs4` 为遗留命名 | 0.3343 | 250,000/250,000 完成；final adapter/train/eval artifact 已验证 |
+| PT-exp2-mm-e1/e2/e3-v2 | LlamaFactory | `train_PT_exp2_mm_{e1,e2,e3}_v2_nometa_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400` | PT-exp2-text8m → v2 e1 → v2 e2 adapter | all MM-PT + 三组不重叠 1:1 text replay 的无 `meta` 训练投影 | 150,668 / 150,637 / 150,718 | 各 1 epoch | 物理 CUDA 1 单卡 BS2、GA8、global batch 16；三次顺序 multimodal consolidation；每轮后独立 VAL512 推理 | - | 未训练；v1 启动已 invalidated；v2 Arrow/loader/三轮零截断 gate 就绪，e1 `ready=true` |
 | exp2 | LlamaFactory | `train_exp2_qwen35_08b_sft1w_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-SFT | 10,000 | 3 | 无 PT，小规模 SFT | 0.2418 | 完成并评测 |
 | exp2_1 | LlamaFactory | `train_exp2_1_qwen35_08b_sft5w_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-SFT | 50,000 | 3 | 无 PT，扩大 SFT 数据量 | 0.2031 | 完成并评测 |
 | exp2_2 | LlamaFactory | `train_exp2_2_qwen35_08b_sft_ep3_bs2_ga8_lora64` | Qwen3.5-0.8B | BrickNet-MM-SFT | 334,355 | 3 | 无 PT，全量 SFT | - | 中断于 20,660/62,694；可恢复 `checkpoint-20000` |
@@ -186,8 +200,8 @@ Lean-State V2 `exp4_3_1` 也已完成训练、strict extraction 和统一 VAL512
 | exp4_4 | LlamaFactory | `train_exp4_4_qwen35_08b_PT_exp2_stage2_nonthinking_control_10k_ep3_bs1_gbs16_lora64_len16384` | final `PT-exp2` alias | Stage2 NonThinking-Control 10k | 10,000 | 3 | 单/双卡自适应、BS1、GA16/8、global batch 16；新 PT 初始化的首个下游候选；无 VAL511 | - | dormant；等待 PT-exp2 alias |
 | exp4_5 | LlamaFactory | `train_exp4_5_qwen35_08b_PT_exp2_stage2_nonthinking_control_50k_ep3_bs1_gbs16_lora64_len16384` | final `PT-exp2` alias | Stage2 NonThinking-Control 50k | 50,000 | 3 | 单/双卡自适应、global batch 16；exp4_4 收益 gate 后扩容 | - | dormant；未物化 50k |
 | exp4_6 | LlamaFactory | `train_exp4_6_qwen35_08b_PT_exp2_stage2_nonthinking_control_all66456_ep3_bs1_gbs16_lora64_len16384` | final `PT-exp2` alias | Stage2 NonThinking-Control all | 66,456 | 3 | 单/双卡自适应、global batch 16；exp4_5 收益 gate 后扩容 | - | dormant |
-| exp4_4_1 | LlamaFactory | `train_exp4_4_1_qwen35_08b_PT_exp2_100k_stage2_nonthinking_control_10k_ep3_bs1_gbs16_lora64_len16384` | external PT-exp2-100k | Stage2 NonThinking-Control 10k | 10,000 | 3 | 外部 100k PT 权重的独立下游 | - | blocked；规范 PT-exp2-100k adapter 尚未同步 |
-| exp4_7_1 | LlamaFactory | `train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_gbs16_lora64_len16384` | external PT-exp2-100k | Stage2 V2 Lean-State 10k | 10,000 | 3 | 外部 100k PT 权重 + Lean-State | - | blocked；规范 PT-exp2-100k adapter 尚未同步 |
+| exp4_4_1 | LlamaFactory | `train_exp4_4_1_qwen35_08b_PT_exp2_100k_stage2_nonthinking_control_10k_ep3_bs1_gbs16_lora64_len16384` | external PT-exp2 checkpoint-100000 | Stage2 NonThinking-Control 10k | 10,000 | 3 | 外部 100k-step PT 权重的独立下游 | 0.1601 | 训练 1,875/1,875 steps、512 推理和全指标完成；validated/hold |
+| exp4_7_1 | LlamaFactory | `train_exp4_7_1_qwen35_08b_PT_exp2_100k_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_gbs16_lora64_len16384` | external PT-exp2 checkpoint-100000 | Stage2 V2 Lean-State 10k | 10,000 | 3 | 外部 100k-step PT 权重 + Lean-State | 0.1085 | 训练 1,875/1,875 steps、512 推理、strict extraction 和全指标完成；validated/hold |
 | Stage8 R1-S | LlamaFactory | `train_stage8_r1_s_act_success_10k_ep3_bs1_ga16_lora64_len16384` | PT-exp1 + exp4_2 adapters | GT success-only Act trajectory | 10,000 sources | 3 | 逐 placement observation 协议 cold start；accepted-action boundary window | - | 历史 64-source protocol/window 测试通过；当前重绑 Stage5 的 artifact 因 token gate fail-closed，正式 10k 未物化/训练 |
 | Stage8 R1-C | LlamaFactory | `train_stage8_r1_c_act_correction_10k_token_matched_lora64_len16384` | PT-exp1 + exp4_2 adapters，新 LoRA | supervised tokens 80% success + 20% real rejection/correction | 10,000 sources | token-matched | 与 R1-S supervised action-token budget 匹配 | - | blocked；等待 R1-S checkpoint、paired gate 和 policy rejection |
 | Stage8 R1-B | LlamaFactory | `train_stage8_r1_b_act_rollback_10k_token_matched_lora64_len16384` | PT-exp1 + exp4_2 adapters，新 LoRA | supervised tokens 70% success + 20% correction + 10% rollback | 10,000 sources | token-matched | 只接受真实 successful rollback branch | - | blocked；等待 ≥1,000 rollback transitions / 100 sources |
@@ -195,6 +209,22 @@ Lean-State V2 `exp4_3_1` 也已完成训练、strict extraction 和统一 VAL512
 PT-exp0 虽然命名为 PT，但在 LlamaFactory 中使用 `stage=sft` 和 BrickNet-MM-PT，属于
 多模态监督预训练式训练，不等同于原始 BrickNet 使用固定 `"a"` prompt 的无条件
 text-only PT。
+
+`PT-exp2-text8m` 于 2026-08-20 完成。`trainer_state.global_step/max_steps=250000/250000`、epoch=
+`1.0391942503460516`、train loss=`0.3343376237487793`、eval loss=`0.29681164026260376`、
+eval perplexity=`1.345561825904564`、input tokens=`13,681,772,704`、runtime=`514,805.1127s`。
+实际 final 参数为 world size 2、每卡 BS16、GA1、有效 global batch 32。关键 SHA-256：train YAML=
+`a5e8be9e...77f32`、adapter model=`a5ec2be5...685bd`、adapter config=`f3d911f7...9446a`、
+trainer state=`dd55f2ea...ad997`、train results=`b07662ba...e7b4`、all results=`de83afe9...22dc`。
+这些证据只验证纯文本 PT 训练与 PT-loss eval；MM consolidation 和统一 VAL512 尚未发生。
+
+MM e1/e2/e3 v1 的活动 processor audit 曾于 2026-08-20 用训练同款 media root、模板、像素范围和
+`cutoff_len=6400` 重建。三轮分别覆盖 `150,668/150,637/150,718` 条，均 0 error、0 truncation、
+`training_eligible=true`；report SHA-256=`738ec582...6e132c / 1acb1b10...886fb1 / d87c2a4e...11f65a`。
+该审计没有强制 Arrow 把异构 `meta` 合并为同一 struct，因此未捕获 v1 启动失败。新增的 v2 训练投影
+只保留 `id/messages/images`，已同时通过完整 Arrow materialization、真实 LlamaFactory loader 和全池
+processor audit。v2 audit report SHA-256=
+`9adeee87...da61e / 01697ec5...1738 / b5f1824a...c6266`。这些结果只是训练 gate，不是模型质量结果。
 
 Stage 2 的 paired 全指标已齐。`exp4_2` 为 parsable `382/512 (74.61%)`、clean `93/512 (18.16%)`、dense
 reward `0.58159`、strict success `16/512 (3.12%)`；`exp4_3` 为 parsable/trace-valid `360/512 (70.31%)`、
@@ -222,15 +252,40 @@ Lean-State V2 `exp4_3_1` 为 parsable `374/512 (73.05%)`、clean `95/512 (18.55%
 `train_results.json=1004fd6f…17df`、`trainer_state.json=e4320dcd…d7c0`、
 `adapter_config.json=d65c0207…0f55`、`adapter_model.safetensors=ec526af8…a3d4`。
 
+`exp4_4_1` 为 parsable `399/512 (77.93%)`、clean `115/512 (22.46%)`、dense reward `0.59398`、
+strict success `8/512 (1.56%)`；`exp4_7_1` 为 parsable `412/512 (80.47%)`、clean `128/512 (25.00%)`、
+dense reward `0.59602`、strict success `12/512 (2.34%)`。两组共享同一 ordered VAL512
+ID hash `90848973…e51`。相对 `exp4_4_1`，`exp4_7_1` 的 parsable/clean 各高 `+2.54 pp`、
+dense 高 `+0.00204`、strict 高 `+0.78 pp`，但尚未做 paired bootstrap，只能解释为点估计差异。
+`exp4_7_1` 只有 `31/512 (6.05%)` 通过 Lean-State strict trace-format，且仅 `511/512`
+有非空 extracted prefix；因此 path evaluator 结果有效，但 reasoning schema 仍不推广。
+
+两个实验实际加载的上游 checkpoint 为
+`saves/Qwen3.5-0.8B-Thinking/lora/backup/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack-checkpoint-100000`，
+`trainer_state.global_step=100000`，其 `adapter_model.safetensors` SHA-256=`f211e689…c6c9`。
+`exp4_4_1` 关键证据 SHA-256：train/predict YAML=`95c5644b…3e114 / e4e45183…6abcb`；
+`train_results.json=66c41070…b42d`、`trainer_state.json=71bdfbdb…a366`、`adapter_config.json=3a08c23f…e809`、
+`adapter_model.safetensors=1ff9897e…e3f7`、`generated_predictions.jsonl=9ddeab87…4f39`、
+`path_predictions.jsonl=b3601cd8…7edef`、`trace_extraction_report.json=6dd24d73…e6e10`、
+`evaluation_manifest.json=10e27a4d…82adfc`、
+`metrics.json=b26a8f9d…95b094`、`alignment.jsonl=5f252e65…f8ae03`。
+`exp4_7_1` train/predict YAML=`f5d49cb3…88219 / 835e70e5…86304`；
+`train_results.json=3e2207db…e25577`、`trainer_state.json=e622b5f3…6eb776`、`adapter_config.json=88255820…fc68`、
+`adapter_model.safetensors=f4815d6f…51ca31`、`generated_predictions.jsonl=44ebd801…db375`、
+`path_predictions.jsonl=b6740b5c…75d3f`、`trace_extraction_report.json=439a0642…3b659`、
+`evaluation_manifest.json=19c15604…d7cd`、
+`metrics.json=3b10aea1…ef2a`、`alignment.jsonl=d9dfc0a3…344193`。
+
 ## exp4_2 Agentic Stage 5–7 结果
 
 Stage5 使用真实 mesh 对完整 66,456 reference 做事务 replay，结果为 `processed=passed=66,456`、
 `total_actions=1,751,435`、`failures=0`、`stage5_replay_gate_passed=true`。Stage6–7 固定使用
 `Qwen3.5-0.8B + PT-exp1 + exp4_2`，同一 512 VAL、seed 42 和冻结预算；没有重新训练模型。
 
-> **当前状态：inference-contract v1 与五组实现已冻结；B1/V1/V2/A0/A1 均待重跑。** 旧 B1 缺少当前完整
-> contract metadata，旧 V1/V2 另有 rejected raw 擦除与 DFS 不完整，旧 A0/A1 另有首轮 prompt 漂移。下表十行
-> 全部只作事故诊断，不进入当前比较或项目决策。本轮按临时覆盖策略在原目录生成新 provenance，并同名重建结果表。
+> **当前状态：B1/V1/V2/A0 已完成并按其原 contract-v1 采用；只等待 compact A1 重跑。** 四组各 512/512，
+> embedded canonical contract 均为 `76067f38…f825`，单组 preflight 与八套现有 final/diagnostic 评测均通过。
+> A1-v1 两次在第 3 条样本 prefill OOM，2-row partial 已判定无效。新 active A1 contract 是 mode-scoped revision；
+> 它不能用于改写旧四组 provenance。A1 完成后只重建 A1 两层，再把已有八层与新两层汇总成五模式、十层 manifest。
 
 `final_system` 是 controller 最终可以安全交付的 hard-valid path，失败 episode 记为空串。模型诊断层按模式分为
 `full_path_raw`（B1 完整单次生成）、`greedy_observed_candidate0_prefix`（V1/A0）和
@@ -245,40 +300,41 @@ task strict success。
 
 | Mode | Layer | Parsable | Clean | PE | SigLIP2 | VQA | BLEU-4 | ROUGE-L | Inventory F1 | Pose Match | Dense Reward | Strict Success |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| B1 post-hoc（superseded） | historical final | 18.95% | 18.95% | 0.305568 | 0.917509 | 0.819251 | 17.7410 | 12.7263 | 0.189453 | 0.084633 | 0.320116 | 15/512 (2.93%) |
-| B1 post-hoc（superseded） | historical full_path_raw | 72.85% | 19.14% | 0.279856 | 0.801712 | 0.760395 | 90.4902 | 55.7241 | 0.900121 | 0.142103 | 0.584527 | 15/512 (2.93%) |
-| V1 silent retry（invalidated） | legacy final | 28.32% | 28.32% | 0.296717 | 0.876359 | 0.794801 | 26.3474 | 17.7328 | 0.283203 | 0.091264 | 0.368981 | 13/512 (2.54%) |
-| V1 silent retry（invalidated） | legacy raw | 16.60% | 16.60% | 0.310031 | 0.910616 | 0.828570 | 15.6142 | 10.9608 | 0.166016 | 0.076760 | 0.306036 | 13/512 (2.54%) |
-| V2 silent DFS（invalidated） | legacy final | 69.34% | 69.34% | 0.282680 | 0.795736 | 0.765012 | 64.1347 | 39.3129 | 0.693359 | 0.134614 | 0.587064 | 16/512 (3.12%) |
-| V2 silent DFS（invalidated） | legacy raw | 18.36% | 18.36% | 0.309605 | 0.900475 | 0.813474 | 17.2275 | 11.7962 | 0.183594 | 0.088955 | 0.318483 | 15/512 (2.93%) |
-| A0 explicit feedback（invalidated） | legacy final | 0.20% | 0.20% | 0.239990 | 1.000000 | 0.761952 | 0.1713 | 0.1149 | 0.001953 | 0.000977 | 0.201270 | 0/512 |
-| A0 explicit feedback（invalidated） | legacy raw | 0.00% | 0.00% | - | - | - | 0.0000 | 0.0000 | 0.000000 | 0.000000 | 0.200000 | 0/512 |
+| B1 post-hoc（validated/adopted） | final_system | 18.95% | 18.95% | 0.305568 | 0.917509 | 0.819251 | 17.7410 | 12.7263 | 0.189453 | 0.084633 | 0.320116 | 15/512 (2.93%) |
+| B1 post-hoc（validated/adopted） | full_path_raw | 72.85% | 19.14% | 0.279856 | 0.801712 | 0.760395 | 90.4902 | 55.7241 | 0.900121 | 0.142103 | 0.584527 | 15/512 (2.93%) |
+| V1 silent retry（validated/adopted） | final_system | 28.32% | 28.32% | 0.296717 | 0.876359 | 0.794801 | 26.3474 | 17.7328 | 0.283203 | 0.091264 | 0.368981 | 13/512 (2.54%) |
+| V1 silent retry（validated/adopted） | greedy_observed_candidate0_prefix | 92.97% | 18.95% | 0.254801 | 0.620582 | 0.560921 | 32.6413 | 38.4381 | 0.555496 | 0.137295 | 0.483099 | 13/512 (2.54%) |
+| V2 silent DFS（validated/adopted） | final_system | 67.38% | 67.38% | 0.281494 | 0.814256 | 0.775299 | 62.3077 | 38.4094 | 0.673828 | 0.131197 | 0.576273 | 17/512 (3.32%) |
+| V2 silent DFS（validated/adopted） | search_observed_candidate0_prefix | 99.22% | 97.66% | 0.183736 | 0.204999 | 0.189219 | 2.5720 | 11.9388 | 0.183169 | 0.087427 | 0.470342 | 1/512 (0.20%) |
+| A0 explicit feedback（validated/adopted） | final_system | 0.00% | 0.00% | - | - | - | 0.0000 | 0.0000 | 0.000000 | 0.000000 | 0.200000 | 0/512 |
+| A0 explicit feedback（validated/adopted） | greedy_observed_candidate0_prefix | 0.78% | 0.59% | 0.190674 | 0.381594 | 0.343724 | 3.2756 | 17.5184 | 0.134770 | 0.075274 | 0.273344 | 0/512 |
 | A1 feedback search（invalidated） | legacy final | 5.27% | 5.27% | 0.307337 | 0.892875 | 0.774451 | 4.8555 | 3.2588 | 0.052734 | 0.019809 | 0.232310 | 3/512 (0.59%) |
 | A1 feedback search（invalidated） | legacy raw | 0.20% | 0.20% | 0.288818 | 0.777344 | 0.464743 | 0.1923 | 0.1172 | 0.001953 | 0.001674 | 0.201479 | 0/512 |
 
-旧 B1 是同协议、同 seed/RNG 生命周期的新随机运行，但未绑定当前完整 inference contract，因此只作历史诊断。
+上表前八行是当前可用的四组冻结结果；末两行仍是更早 A1 异常实现的历史诊断，不代表待运行的 compact A1。
 完全消除采样差异的 post-hoc 因果检查另由冻结 exp4_2 prediction replay 提供。`Parsable/Clean` 检查原始
 prediction；task strict 在统一换行规范化后计算，两者输入边界不同，不能互相倒填。
 
 Controller 机制与成本指标：
 
-以下全部成本来自 superseded/invalidated artifact，只用于估计旧实现开销，不能与效果组成当前 cost-effectiveness 结论。
+前四行成本来自当前 adopted artifact；A1 行仍是历史异常实现，只用于解释 OOM 前的旧开销，不能与 compact A1 比较。
 `Controller hard-valid success`、`Recovery rate`、`Mean expansions`、`Mean generated tokens` 和 `Mean latency`
 的计算与解释统一见[Stage 6–7 外层纠错机制与计算成本](#stage-67-外层纠错机制与计算成本)。
 
 | Mode | Controller hard-valid success | Recovery rate | Mean expansions | Mean generated tokens | Mean latency |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| B1（superseded） | 97/512 | 0.00% | 1.00 | 610.84 | 12.381 s |
-| V1（invalidated） | 145/512 | 14.05% | 20.44 | 465.41 | 12.437 s |
-| V2（invalidated） | 355/512 | 64.48% | 384.25 | 10,948.73 | 96.392 s |
-| A0（invalidated） | 1/512 | 0.20% | 6.59 | 140.44 | 3.966 s |
+| B1（validated/adopted） | 97/512 | 0.00% | 1.00 | 984.66 | 20.364 s |
+| V1（validated/adopted） | 145/512 | 14.05% | 20.44 | 465.41 | 18.021 s |
+| V2（validated/adopted） | 345/512 | 62.47% | 476.77 | 14,786.60 | 153.498 s |
+| A0（validated/adopted） | 0/512 | 0.00% | 5.85 | 123.30 | 4.995 s |
 | A1（invalidated） | 27/512 | 5.27% | 295.81 | 8,647.52 | 69.890 s |
 
 所有 controller 成功输出经 evaluator 复核均为 100% hard-valid；`gpu_time_seconds` 未记录，因此当前只能报告
 wall-clock latency，不能宣称 GPU-time 优势。
 
 以下 paired bootstrap 使用同一 ordered VAL512，对逐样本 `candidate-baseline` 有放回抽样 10,000 次，seed=42；
-由于 candidate artifact 已 invalidated，整表只保留历史 provenance，不是当前统计结论：
+下表来自更早的 invalidated cohort，只保留历史 provenance，不是当前统计结论；当前 mixed-contract paired
+bootstrap 必须等待 compact A1 及新 manifest：
 
 `Final strict delta`、`Final dense delta`、两列 `95% CI` 和 `判定` 统一见[成对差值与不确定范围](#成对差值与不确定范围)；箭头方向
 `A → B` 始终表示差值按 `B-A` 计算。
@@ -290,18 +346,27 @@ wall-clock latency，不能宣称 GPU-time 优势。
 | V2 → A1 | -2.539 pp | [-4.102, -1.367] pp | -0.354754 | [-0.378715, -0.330678] | feedback search 显著劣于 silent DFS |
 | B0/exp4_2 → V2 final | 0.000 pp | [-0.977, +1.172] pp | +0.005471 | [-0.015181, +0.025735] | strict/dense 均未证明稳定提升 |
 
-当前没有可用于排名的 Stage6–7 五组结果。B1 的 post-hoc 覆盖、V1/V2/A0/A1 的相对效果、V2 是否作为安全
-fallback，以及是否据此直接进入 R1-S 均保持未决；必须先完成五组 contract-v1 重跑和新 paired bootstrap。
+当前 B1/V1/V2/A0 的单组结果可引用；五组相对排名仍等待 compact A1 和新 paired bootstrap。V2 不需要重跑，
+其 17/512 task-strict、345/512 controller hard-valid 及现有成本是本轮 A1 比较的冻结基线。
 
 冻结证据：
 
-- Stage5 report：`../BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json`，
-  SHA-256=`89556b1c2d0ad754548984c3350388f57787c69618e6b6a60d30468455112ae4`。
-- Stage6–7 contract-v1 config：`../BrickNet/configs/agentic_stage67_exp4_2.json`，SHA-256=
-  `606dcd5f5a691ef6237f4ef391ae1d72be35963fecff8e5135654ca32caccf47`。
-- 待覆盖证据：五组 controller 写入 `../BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_{b1,v1,v2,a0,a1}/`；统一评测同名
-  重建 `agentic_exp4_2_stage67_manifest.json`、`agentic_exp4_2_stage67_statistics.json` 和
-  `agentic_exp4_2_stage67_results.md`。当前同名文件仍是旧内容，不能用其 hash/分数补位。
+- Stage6–7 当前正式入口 `../BrickNet/configs/agentic_stage67_exp4_2.json` 是 per-run contract config；
+  config SHA-256=`371a60a1e55294a3a7d7b0917c4d48954009c2fe1337d3f5ae7df4b45c35a987`，active compact-A1
+  canonical contract SHA-256=`f0effcc8fcc4fea35fde5b2aa82e6a6ecb9418d038a4ecb54d00f6d5ab38f611`；逐字节备份为
+  `../BrickNet/configs/agentic_stage67_exp4_2.new-server.371a60a1.json`。
+- B1/V1/V2/A0 只接受 immutable v1 模板
+  `../BrickNet/configs/agentic_stage67_exp4_2.new-server.f4eb8c9b.json`，config SHA-256=
+  `f4eb8c9b14e9f5919d45925d84d385e42c60595e57da179b77d63d63f08c28b2`，canonical contract SHA-256=
+  `76067f38eecd3ec02b4b5e3cc9bf2a44e5b704beeb0a206c668b9eeae5d1f825`；四组每个 audit/final/diagnostic
+  文件的 adopted SHA 均由 v4 config 锁定，原行内 provenance 不改写。
+- Stage5 report 未重建：
+  `../BrickNet/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json`，
+  SHA-256 仍为 `89556b1c2d0ad754548984c3350388f57787c69618e6b6a60d30468455112ae4`；
+  已在新 canonical data/mesh 路径上重新验证通过。
+- 待覆盖证据仅为 `../BrickNet/outputs_val/qwen35_08b/agentic_exp4_2_a1/`。A1 完成后仅重建其 final/diagnostic，
+  再同名重建 `agentic_exp4_2_stage67_manifest.json`、`agentic_exp4_2_stage67_statistics.json` 和
+  `agentic_exp4_2_stage67_results.md`；manifest 的十层是五模式×两层派生评测，不是十次推理。
 
 ## GRPO 在线训练结果
 
@@ -349,6 +414,8 @@ SFT 的对齐指标均由保留的逐样本预测按当前 GRPO verifier 重新�
 | exp4_2 | mixed PT-exp1 + NonThinking-Control 10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3, len=16384; eval p=.95, k=20, t=1 | 382 (74.61%) | 6.2012 | 0.2804 | 0.7896 | 0.7552 | 93 (18.16%) | 90.6938 | 95.3249 | 66.1692 | 55.6116 | 0.2092 | 0.5891 | 0.5634 | 0.8850 | 0.8995 | 0.8739 | 0.4610 | 0.1504 | 0.5816 | 16 (3.12%) |
 | exp4_3 | mixed PT-exp1 + Thinking-Hard 10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3, len=16384; eval extracted path p=.95, k=20, t=1 | 360 (70.31%) | 6.1738 | 0.2799 | 0.7818 | 0.7486 | 101 (19.73%) | 90.8840 | 95.3189 | 65.7112 | 55.1668 | 0.1968 | 0.5497 | 0.5264 | 0.8663 | 0.8812 | 0.8603 | 0.4743 | 0.1452 | 0.5739 | 13 (2.54%) |
 | exp4_3_1 | mixed PT-exp1 + Thinking-Hard V2 Lean-State 10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3, len=16384; eval extracted path p=.95, k=20, t=1 | 374 (73.05%) | 6.1719 | 0.2806 | 0.7815 | 0.7612 | 95 (18.55%) | 90.4117 | 95.2212 | 65.4844 | 55.3858 | 0.2049 | 0.5709 | 0.5561 | 0.8751 | 0.8853 | 0.8658 | 0.4848 | 0.1422 | 0.5783 | 16 (3.12%) |
+| exp4_4_1 | external PT-exp2 checkpoint-100000 + NonThinking-Control 10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3, len=16384; eval p=.95, k=20, t=1 | 399 (77.93%) | 8.2031 | 0.2801 | 0.7939 | 0.7500 | 115 (22.46%) | 85.0800 | 93.6209 | 64.4886 | 53.8982 | 0.2183 | 0.6187 | 0.5844 | 0.9141 | 0.8829 | 0.8553 | 0.5430 | 0.1349 | 0.5940 | 8 (1.56%) |
+| exp4_7_1 | external PT-exp2 checkpoint-100000 + Thinking-Hard V2 Lean-State 10k | Qwen3.5-0.8B-PT-SFT | lr=5e-5, ep=3, len=16384; eval extracted path p=.95, k=20, t=1 | 412 (80.47%) | 7.5469 | 0.2792 | 0.7783 | 0.7469 | 128 (25.00%) | 89.7759 | 94.7682 | 65.3057 | 55.1706 | 0.2247 | 0.6263 | 0.6010 | 0.9068 | 0.8912 | 0.8965 | 0.5253 | 0.1390 | 0.5960 | 12 (2.34%) |
 
 ### 指标含义、计算、来源与作用
 
@@ -392,9 +459,13 @@ path，因此 BLEU/ROUGE 和七项对齐指标记为 `-`，不根据汇总值反
 - Lean-State V2 `exp4_3_1` 相对旧 Thinking-Hard 恢复 parsable、dense 和 strict，但相对 exp4_2 的 strict 持平、
   dense 和 parsable 较低；同时 strict trace-format 仅 7.42%。它既没有主指标点估计优势，也没有 paired
   non-inferiority 证据，reasoning schema 合规性也不足，因此诊断完成后保持 hold。
-- exp4_2 Stage6–7 当前五组均待 contract-v1 重跑；旧 B1/V1/V2/A0/A1 及 paired CI 均已撤回。新协议下
-  V2→A1 只比较 `final_system`；V2 的
-  hard-valid coverage、A0/A1 的显式 feedback 效果及主要瓶颈位置均须等待五组重跑，不能沿用旧结论。
+- 外部 PT-exp2 checkpoint-100000 下游中，`exp4_4_1` 和 `exp4_7_1` 均提高了可解析/无碰撞
+  完整率，但 strict success 分别只有 1.56%/2.34%，均低于 `exp4_2/exp4_3_1` 的 3.12%。
+  `exp4_7_1` 相对同初始化 Control 只有未做 paired bootstrap 的点估计改善，且 strict trace-format
+  仅 6.05%；因此两组均保持 hold，不替换 action-only 主线，也不为 reasoning 扩容开 gate。
+- exp4_2 Stage6–7 的 B1/V1/V2/A0 已冻结采用，禁止因 A1 协议修订重跑。A1-v1 的完整失败子树历史导致
+  prompt 膨胀并 OOM；当前只待 compact A1。同预算 V2→A1 仍只比较 `final_system`，但报告必须披露
+  V2=旧 v1 contract、A1=compact revision，不能把跨修订比较写成同一全局源码 contract。
 - BLEU/ROUGE 较高不代表路径结构合法；任何 verifier/search 增益仍必须以 pose-aware task strict、dense、
   hard-valid safety 与成本的完整 paired 证据判断。
 
@@ -450,9 +521,9 @@ Generation 主表。本节记录固定 `"a"` prompt、`stop_after_newlines=199`�
 
 ## 待完成实验
 
-1. 按 inference-contract v1 将 B1/V1/V2/A0/A1 原路径覆盖重跑，完成增强 preflight、十套
-   `final_system`/分模式诊断层评测、同名 manifest/statistics/results 和 paired bootstrap；V2→A1 仅做
-   `final_system` paired。
+1. 只在单卡上同名覆盖运行 compact A1；完成 A1 preflight 后，仅重建 A1 的 `final_system`/诊断层，
+   再采用 B1/V1/V2/A0 已有八层生成五模式×两层 manifest/statistics/results 与 paired bootstrap。
+   不重跑 V2，不重跑五组；V2→A1 仅做 `final_system` paired 并披露跨 contract revision。
 2. Stage6–7 新基线冻结后，重新执行 Stage8 preflight，按 seed-42 10k manifest 物化、token audit 并训练 R1-S 10k。
 3. Stage8 comparator 命名已冻结：R1-S/R1-C 与 `S8-ZS-Greedy` 成对，R1-B 与 `S8-ZS-DFS`
    成对；两个比较器使用 `stage8-act` 但不是 Stage6 A0/A1。当前待生成正式 VAL512 final/raw artifact。
@@ -460,5 +531,6 @@ Generation 主表。本节记录固定 `"a"` prompt、`stop_after_newlines=199`�
    inference fallback。
 5. R1-B 必须等待至少 1,000 个真实有效 rollback transition、覆盖 100 个不同 source；旧 A1 证据已失效。
 6. Stage9 multi-turn GRPO 只接收通过上述统一 VAL512 gate 的最佳 R1 checkpoint；不得提前启动。
-7. PT-exp2、Stage3 和 `exp2_2` 恢复均保留为独立研究支线，不阻塞 action-only 主线。Stage2 V2 已完成，不再列为
-   待执行项；外部 PT-exp2-100k 权重同步前不得启动 `exp4_4_1/exp4_7_1`。policy-specific hard mining 继续暂停。
+7. PT-exp2、Stage3 和 `exp2_2` 恢复均保留为独立研究支线，不阻塞 action-only 主线。Stage2 V2 与
+   `exp4_4_1/exp4_7_1` 已完成，不再列为待执行项；两个外部 100k-step PT 下游均保持 hold。
+   policy-specific hard mining 继续暂停。

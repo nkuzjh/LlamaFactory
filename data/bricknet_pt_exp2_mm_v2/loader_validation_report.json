@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "validation": "LlamaFactory get_dataset SFT loader smoke",
+  "created_at": "2026-08-19T17:44:32.987980+00:00",
+  "max_samples_per_dataset": 4,
+  "model_weights_loaded": false,
+  "optimizer_started": false,
+  "v2_manifest": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2_mm_v2/manifest.v2.json",
+  "v2_manifest_sha256": "fb610b7857a048b8dafc30922f718bb782cbdfed0193fd78ced466edc250103c",
+  "results": [
+    {
+      "config": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e1_v2.yaml",
+      "config_sha256": "9ae4863dd79dc2324560fe97e5e71f87d8257331f6a0a3284058d7b5bf386336",
+      "dataset": [
+        "BrickNet-PT-exp2-mm-e1-v2"
+      ],
+      "dataset_dir": "data/bricknet_pt_exp2_mm_v2",
+      "media_dir": "data",
+      "raw_full_materialization": true,
+      "preprocessed_rows": 4,
+      "columns": [
+        "input_ids",
+        "attention_mask",
+        "labels",
+        "images",
+        "videos",
+        "audios"
+      ],
+      "first_input_tokens": 770,
+      "first_supervised_tokens": 83,
+      "processor": "Qwen3VLProcessor",
+      "eligible": true
+    },
+    {
+      "config": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e2_v2.yaml",
+      "config_sha256": "677ab40c6fe1a1e18ad3bae905ee66a11fb16cf07432d1ec450d6ad1f5f8bc46",
+      "dataset": [
+        "BrickNet-PT-exp2-mm-e2-v2"
+      ],
+      "dataset_dir": "data/bricknet_pt_exp2_mm_v2",
+      "media_dir": "data",
+      "raw_full_materialization": true,
+      "preprocessed_rows": 4,
+      "columns": [
+        "input_ids",
+        "attention_mask",
+        "labels",
+        "images",
+        "videos",
+        "audios"
+      ],
+      "first_input_tokens": 770,
+      "first_supervised_tokens": 83,
+      "processor": "Qwen3VLProcessor",
+      "eligible": true
+    },
+    {
+      "config": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e3_v2.yaml",
+      "config_sha256": "2e763128b18dd8dca3bd5387213c1494ff2cd03af3718e5286851035f5daa118",
+      "dataset": [
+        "BrickNet-PT-exp2-mm-e3-v2"
+      ],
+      "dataset_dir": "data/bricknet_pt_exp2_mm_v2",
+      "media_dir": "data",
+      "raw_full_materialization": true,
+      "preprocessed_rows": 4,
+      "columns": [
+        "input_ids",
+        "attention_mask",
+        "labels",
+        "images",
+        "videos",
+        "audios"
+      ],
+      "first_input_tokens": 770,
+      "first_supervised_tokens": 83,
+      "processor": "Qwen3VLProcessor",
+      "eligible": true
+    }
+  ],
+  "eligible": true
+}

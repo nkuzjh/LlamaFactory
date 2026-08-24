@@ -190,3 +190,8 @@ data/bricknet_stage2_v2/
 
 data/BrickNet-MM*
 data/bricknet_pt_exp2/
+
+# PT-exp2 MM v2 bulk datasets are synchronized manually between servers.
+# Keep dataset_info.json, manifest.v2.json, and loader_validation_report.json versionable.
+data/bricknet_pt_exp2_mm_v2/*.jsonl
+data/bricknet_pt_exp2_mm_v2.building/

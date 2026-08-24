@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Stage 6-7 formal rerun launcher: B1 -> V1 -> V2 -> A0 -> A1 -> forced Eval.
-# The five controller runs overwrite their existing official paths atomically.
-# Interrupted runs retain *.partial.jsonl evidence; rerunning starts that run at row 0.
+# Stage 6-7 A1-only protocol-revision launcher.
+# B1/V1/V2/A0 are immutable adopted artifacts; only A1 is overwritten.
+# Interrupted A1 retains *.partial.jsonl evidence; rerunning starts A1 at row 0.
 
-BRICKNET_ROOT=/home/jiahao/task/BrickNet
+BRICKNET_ROOT=/data/jiahao/task/BrickNet
 BRICKNET_PY=/home/jiahao/miniconda3/envs/bricknet/bin/python
 BRICKNET_DATASET="$BRICKNET_ROOT/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl"
 STAGE5_REPORT="$BRICKNET_ROOT/outputs_preprocess/BrickNet-MM-Act-SFT/stage5/Stage5-full-replay-report.json"
@@ -19,8 +19,8 @@ export PYTHONPATH="$BRICKNET_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
 usage() {
   printf 'Usage: %s [--preflight-only]\n' "$0"
-  printf '  no argument       Wait for an idle GPU 0, run B1, V1, V2, A0, A1, then rebuild all evaluations.\n'
-  printf '  --preflight-only  Validate the frozen config and local provenance without loading the GPU model.\n'
+  printf '  no argument       Wait for idle GPU 0, overwrite only compact A1, evaluate A1, then rebuild the five-run manifest/bootstrap.\n'
+  printf '  --preflight-only  Validate the active A1 contract and adopted B1/V1/V2/A0 artifacts without loading the GPU model.\n'
 }
 
 PREFLIGHT_ONLY=0
@@ -57,10 +57,18 @@ config_path = Path(sys.argv[1]).resolve()
 config = json.loads(config_path.read_text(encoding="utf-8"))
 validate_config(config)
 contract = config["inference_contract"]
-print(f"Static contract OK: {canonical_json_sha256(contract)}")
+print(f"Active compact-A1 contract OK: {canonical_json_sha256(contract)}")
 for experiment in contract["experiments"]:
     print(f"  {experiment['mode']}: {experiment['audit']}")
+for name, preserved in config["preserved_inference_contracts"].items():
+    print(f"Preserved contract {name}: {preserved['inference_contract_sha256']}")
 PY
+
+printf 'Validating immutable adopted B1/V1/V2/A0 controller artifacts...\n'
+"$BRICKNET_PY" scripts/evaluate_bricknet_agentic_stage67.py \
+  --config "$CONTRACT_CONFIG" \
+  --action preflight \
+  --runs b1 v1 v2 a0
 
 if (( PREFLIGHT_ONLY )); then
   printf 'Preflight-only validation passed; no inference or evaluation was started.\n'
@@ -92,7 +100,7 @@ wait_for_idle_gpu0() {
       --id=0 | tr -d '[:space:]')
 
     if [[ -z "$compute_pids" ]] && (( utilization < 20 && used_memory < 4096 )); then
-      printf '[%s] GPU 0 is idle (%s%% utilization, %s MiB used); starting the formal rerun.\n' \
+      printf '[%s] GPU 0 is idle (%s%% utilization, %s MiB used); starting the A1-only rerun.\n' \
         "$(date --iso-8601=seconds)" "$utilization" "$used_memory"
       return 0
     fi
@@ -130,58 +138,36 @@ COMMON_ARGS=(
   --max-action-tokens 256
 )
 
-run_controller() {
-  local slug=$1
-  local mode=$2
-  local output=$3
+printf '[%s] Starting compact A1; only the existing A1 official path will be atomically overwritten.\n' \
+  "$(date --iso-8601=seconds)"
+"$BRICKNET_PY" scripts/run_bricknet_agentic_a1_compact_inference.py \
+  "${COMMON_ARGS[@]}" \
+  --output "$OUTPUT_ROOT/agentic_exp4_2_a1/controller_audit.jsonl" \
+  --mode a1-feedback-search
 
-  printf '[%s] Starting %s (%s); official artifacts will be atomically overwritten on success.\n' \
-    "$(date --iso-8601=seconds)" "${slug^^}" "$mode"
-  "$BRICKNET_PY" scripts/run_bricknet_agentic_inference.py \
-    "${COMMON_ARGS[@]}" \
-    --output "$output" \
-    --mode "$mode"
-
-  printf '[%s] Validating the completed %s artifacts before continuing.\n' \
-    "$(date --iso-8601=seconds)" "${slug^^}"
-  "$BRICKNET_PY" scripts/evaluate_bricknet_agentic_stage67.py \
-    --config "$CONTRACT_CONFIG" \
-    --action preflight \
-    --runs "$slug"
-}
-
-run_controller \
-  b1 \
-  b1-post-hoc \
-  "$OUTPUT_ROOT/agentic_exp4_2_b1/controller_audit.jsonl"
-
-run_controller \
-  v1 \
-  v1-silent-retry \
-  "$OUTPUT_ROOT/agentic_exp4_2_v1/controller_audit.jsonl"
-
-run_controller \
-  v2 \
-  v2-silent-dfs \
-  "$OUTPUT_ROOT/agentic_exp4_2_v2/controller_audit.jsonl"
-
-run_controller \
-  a0 \
-  a0-act-feedback \
-  "$OUTPUT_ROOT/agentic_exp4_2_a0/controller_audit.jsonl"
-
-run_controller \
-  a1 \
-  a1-feedback-search \
-  "$OUTPUT_ROOT/agentic_exp4_2_a1/controller_audit.jsonl"
-
-printf '[%s] All controller artifacts passed preflight; forcing complete final/diagnostic evaluation and bootstrap rebuild.\n' \
+printf '[%s] Validating compact A1 and all four adopted controller artifacts.\n' \
   "$(date --iso-8601=seconds)"
 "$BRICKNET_PY" scripts/evaluate_bricknet_agentic_stage67.py \
   --config "$CONTRACT_CONFIG" \
-  --action all \
+  --action preflight
+
+printf '[%s] Rebuilding only A1 final/diagnostic evaluation, then the shared manifest/bootstrap.\n' \
+  "$(date --iso-8601=seconds)"
+"$BRICKNET_PY" scripts/evaluate_bricknet_agentic_stage67.py \
+  --config "$CONTRACT_CONFIG" \
+  --action evaluate \
+  --runs a1 \
+  --layers final raw \
   --execute \
   --force
+"$BRICKNET_PY" scripts/evaluate_bricknet_agentic_stage67.py \
+  --config "$CONTRACT_CONFIG" \
+  --action manifest \
+  --execute
+"$BRICKNET_PY" scripts/evaluate_bricknet_agentic_stage67.py \
+  --config "$CONTRACT_CONFIG" \
+  --action summarize \
+  --execute
 
 STATS="$OUTPUT_ROOT/agentic_exp4_2_stage67_statistics.json"
 "$BRICKNET_PY" - "$STATS" <<'PY'
@@ -220,4 +206,4 @@ for name, comparison in stats.get("external_comparisons", {}).items():
 print(f"Full experiment table: {path.with_name('agentic_exp4_2_stage67_results.md')}")
 PY
 
-printf '[%s] Stage 6-7 rerun and evaluation completed successfully.\n' "$(date --iso-8601=seconds)"
+printf '[%s] Compact A1 rerun and mixed-contract Stage 6-7 evaluation completed successfully.\n' "$(date --iso-8601=seconds)"

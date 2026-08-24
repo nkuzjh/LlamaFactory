@@ -1,8 +1,10 @@
 # BrickNet Stage 2 Thinking-Hard SFT Runbook
 
-状态（2026-08-18 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3` 与 Lean-State V2
-`exp4_3_1` 的训练、VAL512 推理和统一评测均已完成。T1 和 Lean-State 都未显示相对 Control 的主指标优势，
-推广 gate 未批准，50k/all 保持关闭。所有数值和 artifact hash 只在 [统一实验结果账本](experiment_results.md) 维护。
+状态（2026-08-19 +08:00）：Stage 0 mixed PT-exp1 final 已完成；`exp4`–`exp4_3`、Lean-State V2
+`exp4_3_1` 以及外部 100k-step PT checkpoint 下游 `exp4_4_1/exp4_7_1` 的训练、VAL512 推理和
+统一评测均已完成。所有 Thinking/Lean-State 路线均未形成 strict 主指标优势，且两个
+Lean-State 实验的 strict trace-format 合规性均很低；推广 gate 未批准，50k/all 保持关闭。
+所有数值和 artifact hash 只在 [统一实验结果账本](experiment_results.md) 维护。
 
 原 Stage 2 比较严格同 ID 的两组数据，新增 V2 仍复用相同 10k ID：
 
@@ -25,6 +27,8 @@
 | `exp4_2` | NonThinking-Control 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_predict.yaml` |
 | `exp4_3` | Thinking-Hard 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_thinking_hard_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_thinking_hard_predict.yaml` |
 | `exp4_3_1` | Thinking-Hard-V2-Lean-State 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_1_thinking_hard_v2_lean_state_10k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_3_1_thinking_hard_v2_lean_state_predict.yaml` |
+| `exp4_4_1` | external PT checkpoint-100000 + NonThinking-Control 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_10k_pt_exp2_100k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_1_nonthinking_control_predict_pt_exp2_100k.yaml` |
+| `exp4_7_1` | external PT checkpoint-100000 + Thinking-Hard-V2-Lean-State 10k | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_10k_pt_exp2_100k.yaml` | `examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_1_thinking_hard_predict_pt_exp2_100k.yaml` |
 
 统一安全启动器为 `scripts/launch_bricknet_stage2_sft.py`。默认只执行 dry-run；实际执行必须同时传入：
 
@@ -232,9 +236,11 @@ launcher 会根据 experiment 自动传入正确的 `--variant`。手工调用 e
 
 ## 5. 当前完成度与等待项
 
-`exp4`、`exp4_1`、`exp4_2`、`exp4_3` 和 `exp4_3_1` 均已通过对应数据/manifest/token/launcher gate 并完成训练；
-正式 10k 组均完成原始 VAL512 的 512/512 推理和统一评测。当前结论是旧 T1 未形成总体优势，Lean-State V2
-恢复部分旧 T1 退化但仍未超过 `exp4_2` 主指标。完整 train loss、结构、图文、alignment 和 strict 数值见
+`exp4`、`exp4_1`、`exp4_2`、`exp4_3`、`exp4_3_1`、`exp4_4_1` 和 `exp4_7_1` 均已完成训练和
+512/512 VAL 推理；正式 10k 组 `exp4_2/exp4_3/exp4_3_1/exp4_4_1/exp4_7_1` 均已完成统一评测。
+当前结论是旧 T1 未形成总体优势，
+两个 Lean-State 实验均没有 strict 主指标优势，且 strict trace-format 合规性不足。完整 train loss、
+结构、图文、alignment 和 strict 数值见
 [统一实验结果账本](experiment_results.md)。Stage 2 的 50k/all 继续暂停；新 PT-exp2 分支另从 `exp4_4` 10k 开始，
 见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
 

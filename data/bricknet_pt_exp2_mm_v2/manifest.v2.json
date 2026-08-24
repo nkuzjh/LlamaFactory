@@ -1,0 +1,331 @@
+{
+  "schema_version": 2,
+  "family": "PT-exp2-mm-training-projection",
+  "data_revision": "v2-no-meta",
+  "status": "validated",
+  "created_at": "2026-08-19T17:33:14.834999+00:00",
+  "purpose": "Arrow-safe training view; preserve id/messages/images exactly and exclude provenance-only meta",
+  "parent_manifest": {
+    "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2/mm/manifest.json",
+    "sha256": "678268372bd4fab6056490d97aa5cb0f4c121eb5ccd68ecc6eaa0db91b35d70e"
+  },
+  "retained_fields": [
+    "id",
+    "messages",
+    "images"
+  ],
+  "removed_fields": [
+    "meta"
+  ],
+  "training_columns": [
+    "messages",
+    "images"
+  ],
+  "ordering": "all BrickNet-MM PT rows in source order, then selected text replay in source order",
+  "selection": "seed-42 SHA-256 order split into three disjoint nearest-token-mass slices",
+  "tokenizer": "Qwen/Qwen3.5-0.8B",
+  "sources": {
+    "multimodal": {
+      "path": "/home/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_PT.json",
+      "rows": 135051,
+      "sha256": "9daa4703ae8e56afec862ce4fbe6cf9344422542b614c6327fcc09690eb4c055"
+    },
+    "text_replay": {
+      "path": "/home/jiahao/task/LlamaFactory/data/BrickNet-PT_text_270102_seed42.jsonl",
+      "rows": 270102,
+      "sha256": "f9b5e410abe1ec4e1aae436d51de12538433b1acb2a891a67eb97c6bd577dd48"
+    }
+  },
+  "epochs": {
+    "e1": {
+      "dataset": "BrickNet-PT-exp2-mm-e1-v2",
+      "file": "PT-exp2-mm-e1-train-v2.jsonl",
+      "rows": 150668,
+      "multimodal_rows": 135051,
+      "text_replay_rows": 15617,
+      "ordered_id_sha256": "38a538c0340602ba1f9a4ca5fef2b347b997363a9cf8d20f04e27a117b947fa8",
+      "semantic_projection_sha256": "6c8b082e792818ab97c5ed3f2cb351f8226a47a2404ff7ba76ee1673b0e3d88e",
+      "sha256": "6c8b082e792818ab97c5ed3f2cb351f8226a47a2404ff7ba76ee1673b0e3d88e",
+      "size_bytes": 280880701,
+      "parent": {
+        "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2/mm/PT-exp2-mm-e1.jsonl",
+        "sha256": "ce3a5185c0ffae9fdcf4b5fdb68cd6a61d00e3b69336ab5be0024c2e815c3928",
+        "manifest_sha256": "ce3a5185c0ffae9fdcf4b5fdb68cd6a61d00e3b69336ab5be0024c2e815c3928"
+      },
+      "parent_meta_signatures": {
+        "caption_index,caption_line,complete_component,complete_npz,component_index,dataset,image,image_size,inventory_has_color,inventory_matches_graph,inventory_source,path_line,round,row_id,sample_index,source_model_id,split": 135051,
+        "complete_component,complete_npz,component_index,dataset,n_parts,round,sample_index,sampling_digest,source,source_line,source_pool,split": 15617
+      },
+      "projection_equivalent": true,
+      "arrow_materialization": {
+        "eligible": true,
+        "datasets_version": "4.0.0",
+        "rows": 150668,
+        "columns": [
+          "id",
+          "images",
+          "messages"
+        ],
+        "features": "{'id': Value('string'), 'images': List(Value('string')), 'messages': List({'content': Value('string'), 'role': Value('string')})}",
+        "boundary": [
+          {
+            "index": 0,
+            "id": "BrickNet-MM__PT__row-000000__caption-000__pathline-000000001",
+            "images": 1
+          },
+          {
+            "index": 135050,
+            "id": "BrickNet-MM__PT__row-253556__caption-000__pathline-032553691",
+            "images": 1
+          },
+          {
+            "index": 135051,
+            "id": "bricknet_pt_text_000006818ca4d5a8403f3488dd5c3c74",
+            "images": 0
+          },
+          {
+            "index": 150667,
+            "id": "bricknet_pt_text_01cbb2489ae6b40b28122687c7ab7005",
+            "images": 0
+          }
+        ]
+      }
+    },
+    "e2": {
+      "dataset": "BrickNet-PT-exp2-mm-e2-v2",
+      "file": "PT-exp2-mm-e2-train-v2.jsonl",
+      "rows": 150637,
+      "multimodal_rows": 135051,
+      "text_replay_rows": 15586,
+      "ordered_id_sha256": "967834ead05c9c482e21dd3523be516c7e5256e6281e429149fb39e28778b487",
+      "semantic_projection_sha256": "bde202d811969ac7c37f001947898af9d3c1e362854036e23eaf1da8cd6f1a52",
+      "sha256": "bde202d811969ac7c37f001947898af9d3c1e362854036e23eaf1da8cd6f1a52",
+      "size_bytes": 280931904,
+      "parent": {
+        "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2/mm/PT-exp2-mm-e2.jsonl",
+        "sha256": "4c1df1d6f357b1f22b2ee918b45f8315f030a96d30ec7b07944b9d6c92d911a9",
+        "manifest_sha256": "4c1df1d6f357b1f22b2ee918b45f8315f030a96d30ec7b07944b9d6c92d911a9"
+      },
+      "parent_meta_signatures": {
+        "caption_index,caption_line,complete_component,complete_npz,component_index,dataset,image,image_size,inventory_has_color,inventory_matches_graph,inventory_source,path_line,round,row_id,sample_index,source_model_id,split": 135051,
+        "complete_component,complete_npz,component_index,dataset,n_parts,round,sample_index,sampling_digest,source,source_line,source_pool,split": 15586
+      },
+      "projection_equivalent": true,
+      "arrow_materialization": {
+        "eligible": true,
+        "datasets_version": "4.0.0",
+        "rows": 150637,
+        "columns": [
+          "id",
+          "images",
+          "messages"
+        ],
+        "features": "{'id': Value('string'), 'images': List(Value('string')), 'messages': List({'content': Value('string'), 'role': Value('string')})}",
+        "boundary": [
+          {
+            "index": 0,
+            "id": "BrickNet-MM__PT__row-000000__caption-000__pathline-000000001",
+            "images": 1
+          },
+          {
+            "index": 135050,
+            "id": "BrickNet-MM__PT__row-253556__caption-000__pathline-032553691",
+            "images": 1
+          },
+          {
+            "index": 135051,
+            "id": "bricknet_pt_text_0000036e3b21a8688390d668e74d0513",
+            "images": 0
+          },
+          {
+            "index": 150636,
+            "id": "bricknet_pt_text_01cbbea447f46313caeacb4eb8cb6a8a",
+            "images": 0
+          }
+        ]
+      }
+    },
+    "e3": {
+      "dataset": "BrickNet-PT-exp2-mm-e3-v2",
+      "file": "PT-exp2-mm-e3-train-v2.jsonl",
+      "rows": 150718,
+      "multimodal_rows": 135051,
+      "text_replay_rows": 15667,
+      "ordered_id_sha256": "2386db7c7f5644222277dbc3e808e67cfa2ad4aa6b5b538fa7313c77beb5ba8c",
+      "semantic_projection_sha256": "c9559719a804b2de4b5b588dac67f4ab339f1273160d98a5f21f6d42c0bc1c02",
+      "sha256": "c9559719a804b2de4b5b588dac67f4ab339f1273160d98a5f21f6d42c0bc1c02",
+      "size_bytes": 280960095,
+      "parent": {
+        "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2/mm/PT-exp2-mm-e3.jsonl",
+        "sha256": "acfea4ccb885376857ddeb0fba901b006a4d4f9aba75aac9bfb51f8179b769a4",
+        "manifest_sha256": "acfea4ccb885376857ddeb0fba901b006a4d4f9aba75aac9bfb51f8179b769a4"
+      },
+      "parent_meta_signatures": {
+        "caption_index,caption_line,complete_component,complete_npz,component_index,dataset,image,image_size,inventory_has_color,inventory_matches_graph,inventory_source,path_line,round,row_id,sample_index,source_model_id,split": 135051,
+        "complete_component,complete_npz,component_index,dataset,n_parts,round,sample_index,sampling_digest,source,source_line,source_pool,split": 15667
+      },
+      "projection_equivalent": true,
+      "arrow_materialization": {
+        "eligible": true,
+        "datasets_version": "4.0.0",
+        "rows": 150718,
+        "columns": [
+          "id",
+          "images",
+          "messages"
+        ],
+        "features": "{'id': Value('string'), 'images': List(Value('string')), 'messages': List({'content': Value('string'), 'role': Value('string')})}",
+        "boundary": [
+          {
+            "index": 0,
+            "id": "BrickNet-MM__PT__row-000000__caption-000__pathline-000000001",
+            "images": 1
+          },
+          {
+            "index": 135050,
+            "id": "BrickNet-MM__PT__row-253556__caption-000__pathline-032553691",
+            "images": 1
+          },
+          {
+            "index": 135051,
+            "id": "bricknet_pt_text_000001b68d66be6dc0cd309288dbc752",
+            "images": 0
+          },
+          {
+            "index": 150717,
+            "id": "bricknet_pt_text_01cbc319a270a8fa78466a564759ee5e",
+            "images": 0
+          }
+        ]
+      }
+    }
+  },
+  "registry": {
+    "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2_mm_v2/dataset_info.json",
+    "sha256": "7ed9a085e9fc57f8fa25254f6c84bccccf5961e0aac7069fcd255ef52f6d5044",
+    "dataset_names": {
+      "e1": "BrickNet-PT-exp2-mm-e1-v2",
+      "e2": "BrickNet-PT-exp2-mm-e2-v2",
+      "e3": "BrickNet-PT-exp2-mm-e3-v2"
+    }
+  },
+  "builder": {
+    "path": "/data/jiahao/task/LlamaFactory/scripts/build_bricknet_pt_exp2_mm_train_view_v2.py",
+    "sha256": "d892c67d86f6817419084ff286a09d51951d0f446b9adb7a8003fd8bef6485c5"
+  },
+  "repository": {
+    "root": "/data/jiahao/task/LlamaFactory",
+    "head": "cc016352baad65713f16c2a79062db37ea0b2e75",
+    "tracked_diff_sha256": "25b2ac4bfc004152875fbb7abfb5ca02bdb11512695d824de464e7a5d4e5354c",
+    "status": [
+      "M bricknet-pt-exp2.md",
+      " M bricknet-stage2-thinking-hard.md",
+      " M experiment_results.md",
+      " M record.md",
+      "?? data/bricknet_pt_exp2_mm_v2.building/",
+      "?? scripts/build_bricknet_pt_exp2_mm_train_view_v2.py",
+      "?? tmp_bash/agentic_stage67_exp4_2.old-server.606dcd5f.json",
+      "?? tmp_bash/pt_exp2_mm_e1_e2_e3.lock",
+      "?? tmp_bash/run_pt_exp2_mm_e1_e2_e3.sh"
+    ]
+  },
+  "environment": {
+    "python": "3.13.14 | packaged by Anaconda, Inc. | (main, Jun 17 2026, 20:12:46) [GCC 14.3.0]",
+    "platform": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39"
+  },
+  "historical_entrypoints": {
+    "data/bricknet_pt_exp2/mm/manifest.json": {
+      "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2/mm/manifest.json",
+      "exists": true,
+      "size": 2595,
+      "sha256": "678268372bd4fab6056490d97aa5cb0f4c121eb5ccd68ecc6eaa0db91b35d70e"
+    },
+    "data/dataset_info.json": {
+      "path": "/data/jiahao/task/LlamaFactory/data/dataset_info.json",
+      "exists": true,
+      "size": 28237,
+      "sha256": "5b98b88f72ceb80b84b729496bae4400f72ce4d2aaddaaf21072a159af2f3d7e"
+    },
+    "scripts/launch_bricknet_pt_exp2.py": {
+      "path": "/data/jiahao/task/LlamaFactory/scripts/launch_bricknet_pt_exp2.py",
+      "exists": true,
+      "size": 31463,
+      "sha256": "030c3065177c87a323b1db471b3ecca878a2949065bed129c2e2280dc1110802"
+    },
+    "tmp_bash/run_pt_exp2_mm_e1_e2_e3.sh": {
+      "path": "/data/jiahao/task/LlamaFactory/tmp_bash/run_pt_exp2_mm_e1_e2_e3.sh",
+      "exists": true,
+      "size": 12611,
+      "sha256": "67517209e1595569535e5158cb00048de60dc56c99cd63d8eaa5f9a233bae61b"
+    },
+    "examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e1.yaml": {
+      "path": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e1.yaml",
+      "exists": true,
+      "size": 1528,
+      "sha256": "c35d4aa8247a245993b41d8f5dd70bb42720d52d93c88d0436c24be216d4f53f"
+    },
+    "examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e2.yaml": {
+      "path": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e2.yaml",
+      "exists": true,
+      "size": 1542,
+      "sha256": "1d459146b9f72ddb73c5101a0db57d1c9483f64e890c2d4919cd2c325a2ac0bc"
+    },
+    "examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e3.yaml": {
+      "path": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e3.yaml",
+      "exists": true,
+      "size": 1542,
+      "sha256": "4b57e4d196520207f53e6956b49ad8a49c68a40e4a8efbdc6e44444a19f5178b"
+    },
+    "examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e1_predict.yaml": {
+      "path": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e1_predict.yaml",
+      "exists": true,
+      "size": 915,
+      "sha256": "f012d831aff82c03c68369f4a7ff281fe0c48e7dc8f44d560b0be4d96c902778"
+    },
+    "examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e2_predict.yaml": {
+      "path": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e2_predict.yaml",
+      "exists": true,
+      "size": 916,
+      "sha256": "e4244f440133bf98d01ed7de4c7daf72c2c2fa63f15e74bf8de06cddd3b94e3e"
+    },
+    "examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e3_predict.yaml": {
+      "path": "/data/jiahao/task/LlamaFactory/examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_e3_predict.yaml",
+      "exists": true,
+      "size": 915,
+      "sha256": "2ac8d9ec28e9b97389ea93272c7f90dcf187395ebd5bdebb1d7d8d0cb70c99ac"
+    },
+    "saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/adapter_config.json": {
+      "path": "/data/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/adapter_config.json",
+      "exists": true,
+      "size": 1048,
+      "sha256": "f3d911f759aa05a05a7eaf0192f3a1b537dd816f524b5b99e7bfbeb22c39446a"
+    },
+    "saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/adapter_model.safetensors": {
+      "path": "/data/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/adapter_model.safetensors",
+      "exists": true,
+      "size": 102264352,
+      "sha256": "a5ec2be5d96a8beb54a4b53e0b1816626fae3cd2cd5da717917804204f5685bd"
+    },
+    "saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/trainer_state.json": {
+      "path": "/data/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/trainer_state.json",
+      "exists": true,
+      "size": 804206,
+      "sha256": "dd55f2ea0c42e3d9f562f78b5a5fd74d3d8a017ec3ab1e7c50d9956adfead997"
+    },
+    "saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/train_results.json": {
+      "path": "/data/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack/train_results.json",
+      "exists": true,
+      "size": 267,
+      "sha256": "b07662baf32da06765e43d46c518403560dfa9775eff2b8ec05c096ca2c6e7b4"
+    }
+  },
+  "gates": {
+    "parent_hashes_match": true,
+    "row_counts_match": true,
+    "ordered_ids_match": true,
+    "semantic_projection_match": true,
+    "uniform_top_level_schema": true,
+    "full_arrow_materialization": true
+  },
+  "eligible": true
+}
