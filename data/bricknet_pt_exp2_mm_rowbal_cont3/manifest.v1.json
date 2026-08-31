@@ -1,0 +1,380 @@
+{
+  "schema_version": 1,
+  "family": "PT-exp2-mm-rowbal-cont3",
+  "dataset": "BrickNet-PT-exp2-mm-rowbal-cont3",
+  "dataset_file": "PT-exp2-mm-rowbal-cont3.jsonl",
+  "file": "PT-exp2-mm-rowbal-cont3.jsonl",
+  "rows": 270102,
+  "multimodal_rows": 135051,
+  "text_rows": 135051,
+  "sha256": "ac55229c93c548008051f138b6587676f020d7f54c0426208c49163b8d285d84",
+  "ordered_id_sha256": "2bc8bb9381ac397135fed382fe18abd753692948137d54d65b709a99bf4c838b",
+  "schema": {
+    "top_level_fields": [
+      "id",
+      "images",
+      "messages"
+    ],
+    "top_level_key_signatures": {
+      "id,images,messages": 270102
+    },
+    "message_fields": [
+      "role",
+      "content"
+    ],
+    "message_roles": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "message_role_sequences": {
+      "system,user,assistant": 270102
+    },
+    "row_order": "multimodal_prefix_then_text_suffix"
+  },
+  "arrow_materialization": {
+    "eligible": true,
+    "datasets_version": "4.0.0",
+    "rows": 270102,
+    "columns": [
+      "id",
+      "images",
+      "messages"
+    ],
+    "features": "{'id': Value('string'), 'images': List(Value('string')), 'messages': List({'role': Value('string'), 'content': Value('string')})}",
+    "boundary": [
+      {
+        "index": 0,
+        "id": "BrickNet-MM__PT__row-000000__caption-000__pathline-000000001",
+        "images": 1
+      },
+      {
+        "index": 135050,
+        "id": "BrickNet-MM__PT__row-253556__caption-000__pathline-032553691",
+        "images": 1
+      },
+      {
+        "index": 135051,
+        "id": "bricknet_pt_text_000000323bbda6b86b440e0b0d6ddb4e",
+        "images": 0
+      },
+      {
+        "index": 270101,
+        "id": "bricknet_pt_text_01cbc319a270a8fa78466a564759ee5e",
+        "images": 0
+      }
+    ]
+  },
+  "registry_sha256": "23734cfef4eccb21810303b40bbe98411fde33985e76add8a6db15c5948906cd",
+  "experiment_id": "PT-exp2-mm-rowbal-cont3",
+  "data_revision": "row-balanced-fixed-replay-cont3-no-meta",
+  "status": "validated",
+  "eligible": true,
+  "created_at": "2026-08-26T06:10:36.170761+00:00",
+  "purpose": "All 135051 MM PT rows plus 135051 fixed seed-42 text rows; one file reused for three trainer epochs",
+  "training_reuse": {
+    "same_dataset_each_epoch": true,
+    "num_epochs": 3,
+    "dataset_rows_per_epoch": 270102,
+    "total_row_exposures": 810306,
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 8,
+    "global_batch_size": 16,
+    "steps_per_epoch": 16882,
+    "expected_max_steps": 50646
+  },
+  "selection": {
+    "seed": 42,
+    "rank": "sha256('42\\0'+id)",
+    "tie_break": "id ascending",
+    "rule": "sort all text IDs by (sha256('42\\0'+id), id), take first 135051",
+    "selected_rows": 135051,
+    "selected_text_ids_artifact": {
+      "file": "selected_text_ids.jsonl",
+      "rows": 135051,
+      "sha256": "4bb7db4501ebe7076b450548136b2f089a6fae046a69ced185c4aeeef5bcfabf",
+      "ordered_id_sha256": "4bb7db4501ebe7076b450548136b2f089a6fae046a69ced185c4aeeef5bcfabf",
+      "order": "stable rank order"
+    },
+    "selected_text_source_order_sha256": "085047b01c179e22d9d5be15b1b0beb7915bea72a7fbd254c18df2423831bc11",
+    "replay_reuse": "the exact same selected IDs are reused in e1/e2/e3; no disjoint split"
+  },
+  "sources": {
+    "multimodal": {
+      "path": "/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_PT.json",
+      "rows": 135051,
+      "row_count": 135051,
+      "sha256": "9daa4703ae8e56afec862ce4fbe6cf9344422542b614c6327fcc09690eb4c055",
+      "unique_id_count": 135051,
+      "schema": {
+        "top_level_key_signatures": {
+          "id,images,messages,meta": 135051
+        },
+        "retained_fields": [
+          "id",
+          "images",
+          "messages"
+        ],
+        "output_message_fields": [
+          "role",
+          "content"
+        ]
+      },
+      "removed_fields": [
+        "meta"
+      ]
+    },
+    "text": {
+      "path": "/data/jiahao/task/LlamaFactory/data/BrickNet-PT_text_270102_seed42.jsonl",
+      "rows": 270102,
+      "row_count": 270102,
+      "sha256": "f9b5e410abe1ec4e1aae436d51de12538433b1acb2a891a67eb97c6bd577dd48",
+      "unique_id_count": 270102,
+      "schema": {
+        "top_level_key_signatures": {
+          "id,messages,meta": 270102
+        },
+        "retained_fields": [
+          "id",
+          "images",
+          "messages"
+        ],
+        "output_message_fields": [
+          "role",
+          "content"
+        ]
+      },
+      "removed_fields": [
+        "meta"
+      ]
+    }
+  },
+  "retained_fields": [
+    "id",
+    "images",
+    "messages"
+  ],
+  "removed_fields": [
+    "meta"
+  ],
+  "training_columns": [
+    "messages",
+    "images"
+  ],
+  "ordering": "all MM rows in source order, then selected text rows in source order",
+  "output": {
+    "rows": 270102,
+    "row_count": 270102,
+    "unique_ids": 270102,
+    "unique_id_count": 270102,
+    "schema": {
+      "top_level_fields": [
+        "id",
+        "images",
+        "messages"
+      ],
+      "top_level_key_signatures": {
+        "id,images,messages": 270102
+      },
+      "message_fields": [
+        "role",
+        "content"
+      ],
+      "message_roles": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "message_role_sequences": {
+        "system,user,assistant": 270102
+      },
+      "row_order": "multimodal_prefix_then_text_suffix"
+    },
+    "modality_counts": {
+      "multimodal_rows": 135051,
+      "text_rows": 135051,
+      "images_total": 135051
+    },
+    "ordered_id_sha256": "2bc8bb9381ac397135fed382fe18abd753692948137d54d65b709a99bf4c838b",
+    "semantic_projection_sha256": "ac55229c93c548008051f138b6587676f020d7f54c0426208c49163b8d285d84",
+    "sha256": "ac55229c93c548008051f138b6587676f020d7f54c0426208c49163b8d285d84",
+    "size_bytes": 884914754,
+    "dataset": "BrickNet-PT-exp2-mm-rowbal-cont3",
+    "file": "PT-exp2-mm-rowbal-cont3.jsonl",
+    "selected_text_source_order_sha256": "085047b01c179e22d9d5be15b1b0beb7915bea72a7fbd254c18df2423831bc11",
+    "arrow_materialization": {
+      "eligible": true,
+      "datasets_version": "4.0.0",
+      "rows": 270102,
+      "columns": [
+        "id",
+        "images",
+        "messages"
+      ],
+      "features": "{'id': Value('string'), 'images': List(Value('string')), 'messages': List({'role': Value('string'), 'content': Value('string')})}",
+      "boundary": [
+        {
+          "index": 0,
+          "id": "BrickNet-MM__PT__row-000000__caption-000__pathline-000000001",
+          "images": 1
+        },
+        {
+          "index": 135050,
+          "id": "BrickNet-MM__PT__row-253556__caption-000__pathline-032553691",
+          "images": 1
+        },
+        {
+          "index": 135051,
+          "id": "bricknet_pt_text_000000323bbda6b86b440e0b0d6ddb4e",
+          "images": 0
+        },
+        {
+          "index": 270101,
+          "id": "bricknet_pt_text_01cbc319a270a8fa78466a564759ee5e",
+          "images": 0
+        }
+      ]
+    }
+  },
+  "old_replay_coverage": {
+    "eligible": true,
+    "available": true,
+    "root": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2/mm",
+    "manifest_sha256": "678268372bd4fab6056490d97aa5cb0f4c121eb5ccd68ecc6eaa0db91b35d70e",
+    "selection_semantics": "historical e1/e2/e3 replay IDs compared with the new stable-rank selection",
+    "epochs": {
+      "e1": {
+        "file": "PT-exp2-mm-e1.jsonl",
+        "file_sha256": "ce3a5185c0ffae9fdcf4b5fdb68cd6a61d00e3b69336ab5be0024c2e815c3928",
+        "old_replay_rows": 15617,
+        "new_selected_text_rows": 135051,
+        "overlap_rows": 15617,
+        "old_replay_selected_coverage": 1.0,
+        "new_selection_old_replay_coverage": 0.11563779609184678,
+        "old_replay_ordered_id_sha256": "03aa780d6967f6eb489f429dd50f21448d42439db8dd1a972c99ce0bdb00e954",
+        "replay_source_ordered_id_sha256": "ebc570e7078ac99b293b42337ed308e43021fc8325593fc541e933d3348d5c2e",
+        "overlap_ordered_id_sha256": "03aa780d6967f6eb489f429dd50f21448d42439db8dd1a972c99ce0bdb00e954",
+        "overlap_source_ordered_id_sha256": "ebc570e7078ac99b293b42337ed308e43021fc8325593fc541e933d3348d5c2e"
+      },
+      "e2": {
+        "file": "PT-exp2-mm-e2.jsonl",
+        "file_sha256": "4c1df1d6f357b1f22b2ee918b45f8315f030a96d30ec7b07944b9d6c92d911a9",
+        "old_replay_rows": 15586,
+        "new_selected_text_rows": 135051,
+        "overlap_rows": 15586,
+        "old_replay_selected_coverage": 1.0,
+        "new_selection_old_replay_coverage": 0.11540825317842889,
+        "old_replay_ordered_id_sha256": "c26d6dad4953cb5b8ed49ece823a97f4e56f68b5111c68075ac14ce3bf224687",
+        "replay_source_ordered_id_sha256": "933f26e952e72cd7cd6b9dabf73d4be1efbdc967d8c59aa848f294a25eb509d3",
+        "overlap_ordered_id_sha256": "c26d6dad4953cb5b8ed49ece823a97f4e56f68b5111c68075ac14ce3bf224687",
+        "overlap_source_ordered_id_sha256": "933f26e952e72cd7cd6b9dabf73d4be1efbdc967d8c59aa848f294a25eb509d3"
+      },
+      "e3": {
+        "file": "PT-exp2-mm-e3.jsonl",
+        "file_sha256": "acfea4ccb885376857ddeb0fba901b006a4d4f9aba75aac9bfb51f8179b769a4",
+        "old_replay_rows": 15667,
+        "new_selected_text_rows": 135051,
+        "overlap_rows": 15667,
+        "old_replay_selected_coverage": 1.0,
+        "new_selection_old_replay_coverage": 0.11600802659735951,
+        "old_replay_ordered_id_sha256": "97df8ee0ebd15bd80eaa47ab51ecd92a715b1be57a411d7dfaa9f90db4032f67",
+        "replay_source_ordered_id_sha256": "f236a02d02c1fa0b45307fb03d76de774de85ace376ca442a3b5ed7264c99f1e",
+        "overlap_ordered_id_sha256": "97df8ee0ebd15bd80eaa47ab51ecd92a715b1be57a411d7dfaa9f90db4032f67",
+        "overlap_source_ordered_id_sha256": "f236a02d02c1fa0b45307fb03d76de774de85ace376ca442a3b5ed7264c99f1e"
+      }
+    }
+  },
+  "target_token_mass": {
+    "eligible": true,
+    "method": "CPU tokenizer assistant target plus EOS; add_special_tokens=false; truncation=false",
+    "tokenizer": "Qwen/Qwen3.5-0.8B",
+    "eos_token": "<|im_end|>",
+    "eos_token_id": 248046,
+    "batch_size": 512,
+    "multimodal": {
+      "rows": 135051,
+      "total_tokens": 26285148,
+      "min_tokens": 22,
+      "max_tokens": 2978,
+      "mean_tokens": 194.63127263033965
+    },
+    "selected_text": {
+      "rows": 135051,
+      "total_tokens": 227155208,
+      "min_tokens": 7,
+      "max_tokens": 3432,
+      "mean_tokens": 1681.9957497537966
+    },
+    "text_to_multimodal_target_token_ratio": 8.641960395277211,
+    "row_balance_ratio": 1.0,
+    "required": true
+  },
+  "registry": {
+    "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2_mm_rowbal_cont3/dataset_info.json",
+    "sha256": "23734cfef4eccb21810303b40bbe98411fde33985e76add8a6db15c5948906cd",
+    "dataset_name": "BrickNet-PT-exp2-mm-rowbal-cont3"
+  },
+  "builder": {
+    "path": "/data/jiahao/task/LlamaFactory/scripts/build_bricknet_pt_exp2_mm_rowbal_cont3.py",
+    "sha256": "b147abf172a8591c5ea93acec87aaf201712fc4a9d8ae53cd64abe75dad355e0"
+  },
+  "repository": {
+    "root": "/data/jiahao/task/LlamaFactory",
+    "head": "b635fd67301d8505dec2964a362880b5b8ab62b1",
+    "tracked_diff_sha256": "4b48afc61cb40824e5cd4dab6fed2151b1808a41b522720269434e1813ae0965",
+    "status": [
+      "M bricknet-pt-exp2.md",
+      " M experiment_results.md",
+      " M record.md",
+      " M scripts/evaluate_bricknet_stage2.py",
+      " M scripts/launch_bricknet_stage2_sft.py",
+      "?? data/bricknet_pt_exp2_mm_rowbal_cont3.building/",
+      "?? data/bricknet_pt_exp2_mm_rowbal_cont3.failed-20260826-build-old-replay-hash/",
+      "?? examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_rowbal_cont3.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_rowbal_cont3_ep1_predict.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_rowbal_cont3_ep2_predict.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_pt_exp2_mm_rowbal_cont3_ep3_predict.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_2_nonthinking_control_10k_pt_exp2_text250k.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_2_nonthinking_control_predict_pt_exp2_text250k.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_nonthinking_control_10k_pt_exp2_v2.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_4_nonthinking_control_predict_pt_exp2_v2.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_2_thinking_hard_v2_lean_state_10k_pt_exp2_text250k.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_2_thinking_hard_v2_lean_state_predict_pt_exp2_text250k.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_thinking_hard_v2_lean_state_10k_pt_exp2_v2.yaml",
+      "?? examples/train_lora/qwen35_08b_bricknet_stage2_exp4_7_thinking_hard_v2_lean_state_predict_pt_exp2_v2.yaml",
+      "?? scripts/build_bricknet_pt_exp2_mm_rowbal_cont3.py",
+      "?? scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py",
+      "?? scripts/launch_bricknet_pt_exp2_text250k_downstream.py",
+      "?? scripts/launch_bricknet_pt_exp2_v2_downstream.py",
+      "?? scripts/validate_bricknet_pt_exp2_mm_rowbal_cont3.py",
+      "?? tests/eval/test_bricknet_pt_exp2_mm_rowbal_cont3.py",
+      "?? tests/eval/test_bricknet_pt_exp2_mm_rowbal_cont3_data.py",
+      "?? tests/eval/test_bricknet_pt_exp2_text250k_downstream.py",
+      "?? tests/eval/test_bricknet_stage2_alignment_manifest.py",
+      "?? tmp_bash/run_exp4_4_2_exp4_7_2_pt_exp2_text250k_cuda1.lock",
+      "?? tmp_bash/run_exp4_4_2_exp4_7_2_pt_exp2_text250k_cuda1.pid",
+      "?? tmp_bash/run_exp4_4_2_exp4_7_2_pt_exp2_text250k_cuda1.sh",
+      "?? tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.lock",
+      "?? tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.pid",
+      "?? tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.sh"
+    ]
+  },
+  "environment": {
+    "python": "3.13.14 | packaged by Anaconda, Inc. | (main, Jun 17 2026, 20:12:46) [GCC 14.3.0]",
+    "platform": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39"
+  },
+  "gates": {
+    "source_hashes_match": true,
+    "source_row_counts_match": true,
+    "source_unique_ids": true,
+    "stable_selection_count": true,
+    "fixed_selection_reused_for_three_epochs": true,
+    "uniform_top_level_schema": true,
+    "meta_removed": true,
+    "row_balance": true,
+    "target_token_audit": true,
+    "historical_replay_coverage": true,
+    "full_arrow_materialization": true,
+    "registry_gate": true
+  }
+}

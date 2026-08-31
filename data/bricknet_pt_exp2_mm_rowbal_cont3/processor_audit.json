@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "audit": "real_llamafactory_multimodal_processor",
+  "audit_purpose": "PT-exp2-mm-rowbal-cont3_full_pool",
+  "dataset": "BrickNet-PT-exp2-mm-rowbal-cont3",
+  "rows": 270102,
+  "dataset_sha256": "ac55229c93c548008051f138b6587676f020d7f54c0426208c49163b8d285d84",
+  "manifest_sha256": "b2d77a977ded33ba27bdd0fa3985c2a46dee1eb176500741521d06e8b73bc100",
+  "full_pool": true,
+  "is_full_pool": true,
+  "training_eligible": true,
+  "eligible": true,
+  "errors": 0,
+  "truncated": 0,
+  "cutoff_len": 6400,
+  "processor_workers": 4,
+  "processor_chunksize": 8,
+  "zero_errors": true,
+  "zero_truncation": true,
+  "source_evidence_root": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2_mm_rowbal_cont3/processor_audit_full",
+  "source_report": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2_mm_rowbal_cont3/processor_audit_full/BrickNet-MM-Reasoning_token_audit_report.json",
+  "source_report_sha256": "744e909d4ff6a3735926789cf24112c310eb44df5082ec5c34abc4ef4ba7b414",
+  "source_summary": {
+    "path": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2_mm_rowbal_cont3/PT-exp2-mm-rowbal-cont3.jsonl",
+    "sha256": "ac55229c93c548008051f138b6587676f020d7f54c0426208c49163b8d285d84",
+    "count": 270102,
+    "errors": 0,
+    "truncated": 0,
+    "mm_prompt_cache_hits": 135047,
+    "raw_prompt_tokens": {
+      "p50": 49,
+      "p95": 753,
+      "p99": 892,
+      "max": 1873
+    },
+    "raw_label_tokens": {
+      "p50": 364,
+      "p95": 2481,
+      "p99": 2761,
+      "max": 3433
+    },
+    "raw_total_tokens": {
+      "p50": 894,
+      "p95": 2551,
+      "p99": 2856,
+      "max": 4183
+    },
+    "ordered_id_sha256": "2bc8bb9381ac397135fed382fe18abd753692948137d54d65b709a99bf4c838b",
+    "runtime": {
+      "processor": "Qwen3VLProcessor",
+      "image_processor": "Qwen2VLImageProcessor",
+      "mm_plugin": "Qwen3VLPlugin"
+    },
+    "sidecar": "/data/jiahao/task/LlamaFactory/data/bricknet_pt_exp2_mm_rowbal_cont3/processor_audit_full/BrickNet-PT-exp2-mm-rowbal-cont3_token_audit.jsonl",
+    "sidecar_sha256": "1689f75e29a2a0f821bf58bbd6f569a3b5c34bf16aa108cae3c18f433241e98c"
+  },
+  "runtime": {
+    "model": "Qwen/Qwen3.5-0.8B",
+    "template": "qwen3_5_nothink",
+    "cutoff_len": 6400,
+    "media_dir": "/data/jiahao/task/LlamaFactory/data",
+    "image_max_pixels": 589824,
+    "image_min_pixels": 1024,
+    "video_max_pixels": 65536,
+    "video_min_pixels": 256,
+    "train_on_prompt": false,
+    "mask_history": false,
+    "packing": false,
+    "enable_thinking": false,
+    "image_token_expansion": "Qwen processor once per (width,height,mode) per worker; exact expansion reused",
+    "image_metadata_read_per_record": true
+  }
+}

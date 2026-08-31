@@ -1,0 +1,62 @@
+### exp4_7_3: rowbal-cont3 ep3 -> Stage-2 V2 Thinking-Hard Lean-State 10k
+# The canonical current V2 dataset is Lean-State.  This arm is the
+# user-approved ep3 endpoint-sensitivity arm and binds the checkpoint
+# directly; it does not use an alias or checkpoint-33764.
+
+### model
+model_name_or_path: Qwen/Qwen3.5-0.8B
+adapter_name_or_path: saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_rowbal_cont3_qwen35_08b_text8m250k_mm135051_text135051_ep3_bs2_gbs16_lora64_len6400/checkpoint-50646
+trust_remote_code: true
+flash_attn: auto
+disable_gradient_checkpointing: false
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+create_new_adapter: true
+lora_target: all
+lora_rank: 64
+lora_alpha: 128
+lora_dropout: 0.0
+freeze_vision_tower: true
+freeze_multi_modal_projector: true
+
+### dataset
+dataset: BrickNet-Stage2-ThinkingHard-V2-LeanState-10k
+dataset_dir: data
+media_dir: /data/jiahao/task/BrickNet
+template: qwen3_5_nothink
+enable_thinking: false
+cutoff_len: 16384
+train_on_prompt: false
+packing: false
+preprocessing_num_workers: 16
+dataloader_num_workers: 4
+tokenized_path: .llamafactory_cache/tokenized_dataset/exp4_7_3-PT_exp2_mm_rowbal_cont3-ep3-thinking-hard-v2-lean-state-10k-qwen35-08b-len16384
+image_max_pixels: 589824
+image_min_pixels: 1024
+video_max_pixels: 65536
+video_min_pixels: 256
+
+### output
+output_dir: saves/Qwen3.5-0.8B-Thinking/lora/train_exp4_7_3_qwen35_08b_PT_exp2_mm_rowbal_cont3_ep3_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_ga16_lora64_len16384
+logging_steps: 10
+save_steps: 250
+plot_loss: true
+report_to: none
+include_num_input_tokens_seen: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 16
+learning_rate: 5.0e-5
+num_train_epochs: 3.0
+lr_scheduler_type: cosine
+warmup_steps: 0
+max_grad_norm: 1.0
+optim: adamw_torch
+bf16: true
+ddp_timeout: 180000000
+ddp_find_unused_parameters: false
+seed: 42

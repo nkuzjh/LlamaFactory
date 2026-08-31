@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "validation": "LlamaFactory get_dataset full-pool SFT loader",
+  "dataset": "BrickNet-PT-exp2-mm-rowbal-cont3",
+  "rows": 270102,
+  "columns": [
+    "id",
+    "images",
+    "messages"
+  ],
+  "raw_columns": [
+    "id",
+    "images",
+    "messages"
+  ],
+  "preprocessed_rows": 4,
+  "preprocessed_columns": [
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "images",
+    "videos",
+    "audios"
+  ],
+  "first_input_tokens": 770,
+  "first_supervised_tokens": 83,
+  "processor": "Qwen3VLProcessor",
+  "raw_full_materialization": true,
+  "model_weights_loaded": false,
+  "optimizer_started": false,
+  "trainer_started": false,
+  "config_sha256": "830ecb6d04c5ccf55e750d599755ab360d88f309caba434b447b993c4c988529",
+  "dataset_sha256": "ac55229c93c548008051f138b6587676f020d7f54c0426208c49163b8d285d84",
+  "manifest_sha256": "b2d77a977ded33ba27bdd0fa3985c2a46dee1eb176500741521d06e8b73bc100",
+  "eligible": true,
+  "arrow_materialization": {
+    "eligible": true,
+    "datasets_version": "4.0.0",
+    "rows": 270102,
+    "columns": [
+      "id",
+      "images",
+      "messages"
+    ],
+    "boundary": [
+      {
+        "index": 0,
+        "id": "BrickNet-MM__PT__row-000000__caption-000__pathline-000000001",
+        "images": 1
+      },
+      {
+        "index": 135050,
+        "id": "BrickNet-MM__PT__row-253556__caption-000__pathline-032553691",
+        "images": 1
+      },
+      {
+        "index": 135051,
+        "id": "bricknet_pt_text_000000323bbda6b86b440e0b0d6ddb4e",
+        "images": 0
+      },
+      {
+        "index": 270101,
+        "id": "bricknet_pt_text_01cbc319a270a8fa78466a564759ee5e",
+        "images": 0
+      }
+    ]
+  }
+}

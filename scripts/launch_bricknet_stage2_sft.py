@@ -193,6 +193,132 @@ EXPERIMENTS = {
         selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
         expected_train_count=10_000,
     ),
+    # PT-exp2-v2 downstream entries are evaluator-only.  The public Stage-2
+    # launcher choices above intentionally do not expose these keys; the
+    # isolated PT-exp2-v2 downstream launcher owns train/predict.  Keeping
+    # these records here lets evaluate_bricknet_stage2.py reuse its canonical
+    # extraction/evaluation pipeline without rebinding historical entries.
+    ("exp4_4", "10k"): Experiment(
+        experiment_id="exp4_4",
+        variant="nonthinking-control",
+        scale="10k",
+        dataset="BrickNet-Stage2-NonThinking-Control-10k",
+        train_file=ROOT / "data/bricknet_stage2/10k/BrickNet-Stage2-NonThinking-Control.jsonl",
+        eval_file=VAL_ROOT / "datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT / "qwen35_08b_bricknet_stage2_exp4_4_nonthinking_control_10k_pt_exp2_v2.yaml",
+        predict_config=CONFIG_ROOT / "qwen35_08b_bricknet_stage2_exp4_4_nonthinking_control_predict_pt_exp2_v2.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_4_qwen35_08b_PT_exp2_v2_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_4_PT_exp2_v2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
+    ("exp4_7", "10k"): Experiment(
+        experiment_id="exp4_7",
+        variant="thinking-hard-v2-lean-state",
+        scale="10k",
+        dataset="BrickNet-Stage2-ThinkingHard-V2-LeanState-10k",
+        train_file=ROOT
+        / "data/bricknet_stage2_v2/10k/BrickNet-Stage2-ThinkingHard-V2-LeanState.jsonl",
+        eval_file=STAGE2_V2_ROOT
+        / "validation/datasets/BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_thinking_hard_v2_lean_state_10k_pt_exp2_v2.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_thinking_hard_v2_lean_state_predict_pt_exp2_v2.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_7_qwen35_08b_PT_exp2_v2_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_ga16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_7_PT_exp2_v2_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
+    # Text250k-only downstream entries are evaluator-only registrations.  The
+    # isolated text250k launcher owns train/predict and binds the frozen
+    # text8m 250k adapter directly; these records let the canonical evaluator
+    # resolve experiment IDs without exposing a second Stage-2 CLI route.
+    ("exp4_4_2", "10k"): Experiment(
+        experiment_id="exp4_4_2",
+        variant="nonthinking-control",
+        scale="10k",
+        dataset="BrickNet-Stage2-NonThinking-Control-10k",
+        train_file=ROOT / "data/bricknet_stage2/10k/BrickNet-Stage2-NonThinking-Control.jsonl",
+        eval_file=VAL_ROOT / "datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_4_2_nonthinking_control_10k_pt_exp2_text250k.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_4_2_nonthinking_control_predict_pt_exp2_text250k.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_4_2_qwen35_08b_PT_exp2_text250k_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_4_2_PT_exp2_text250k_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
+    ("exp4_7_2", "10k"): Experiment(
+        experiment_id="exp4_7_2",
+        variant="thinking-hard-v2-lean-state",
+        scale="10k",
+        dataset="BrickNet-Stage2-ThinkingHard-V2-LeanState-10k",
+        train_file=ROOT
+        / "data/bricknet_stage2_v2/10k/BrickNet-Stage2-ThinkingHard-V2-LeanState.jsonl",
+        eval_file=STAGE2_V2_ROOT
+        / "validation/datasets/BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_2_thinking_hard_v2_lean_state_10k_pt_exp2_text250k.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_2_thinking_hard_v2_lean_state_predict_pt_exp2_text250k.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_7_2_qwen35_08b_PT_exp2_text250k_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_ga16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_7_2_PT_exp2_text250k_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
+    # PT-exp2-mm-rowbal-cont3 ep3 downstream entries are evaluator-only.  The
+    # dedicated rowbal launcher owns train/predict; these keys are deliberately
+    # outside the public (variant, scale) CLI choices so the canonical Stage-2
+    # evaluator can resolve the two experiment IDs without adding another
+    # training path here.
+    ("exp4_4_3", "10k"): Experiment(
+        experiment_id="exp4_4_3",
+        variant="nonthinking-control",
+        scale="10k",
+        dataset="BrickNet-Stage2-NonThinking-Control-10k",
+        train_file=ROOT / "data/bricknet_stage2/10k/BrickNet-Stage2-NonThinking-Control.jsonl",
+        eval_file=VAL_ROOT / "datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_4_3_nonthinking_control_10k_pt_exp2_mm_rowbal_cont3_ep3.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_4_3_nonthinking_control_predict_pt_exp2_mm_rowbal_cont3_ep3.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_4_3_qwen35_08b_PT_exp2_mm_rowbal_cont3_ep3_stage2_nonthinking_control_10k_ep3_bs1_ga16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_4_3_PT_exp2_mm_rowbal_cont3_ep3_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
+    ("exp4_7_3", "10k"): Experiment(
+        experiment_id="exp4_7_3",
+        variant="thinking-hard-v2-lean-state",
+        scale="10k",
+        dataset="BrickNet-Stage2-ThinkingHard-V2-LeanState-10k",
+        train_file=ROOT
+        / "data/bricknet_stage2_v2/10k/BrickNet-Stage2-ThinkingHard-V2-LeanState.jsonl",
+        eval_file=STAGE2_V2_ROOT
+        / "validation/datasets/BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval.jsonl",
+        train_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_3_thinking_hard_v2_lean_state_10k_pt_exp2_mm_rowbal_cont3_ep3.yaml",
+        predict_config=CONFIG_ROOT
+        / "qwen35_08b_bricknet_stage2_exp4_7_3_thinking_hard_v2_lean_state_predict_pt_exp2_mm_rowbal_cont3_ep3.yaml",
+        train_output=SAVE_ROOT
+        / "train_exp4_7_3_qwen35_08b_PT_exp2_mm_rowbal_cont3_ep3_stage2_thinking_hard_v2_lean_state_10k_ep3_bs1_ga16_lora64_len16384",
+        predict_output=SAVE_ROOT
+        / "eval_exp4_7_3_PT_exp2_mm_rowbal_cont3_ep3_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20",
+        selection_manifest=REASONING_ROOT / "stage2/manifests/stage2_train_10k_seed42.jsonl",
+        expected_train_count=10_000,
+    ),
 }
 
 

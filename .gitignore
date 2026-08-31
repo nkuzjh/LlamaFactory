@@ -195,3 +195,12 @@ data/bricknet_pt_exp2/
 # Keep dataset_info.json, manifest.v2.json, and loader_validation_report.json versionable.
 data/bricknet_pt_exp2_mm_v2/*.jsonl
 data/bricknet_pt_exp2_mm_v2.building/
+
+# PT-exp2 row-balanced continuous-3 bulk artifacts are rebuilt/synchronized
+# per server. Keep the manifest, registry, normalized audit reports, and the
+# compact processor source report versionable; exclude only bulk JSONL/cache
+# payloads and failed/temporary materializations.
+data/bricknet_pt_exp2_mm_rowbal_cont3/*.jsonl
+data/bricknet_pt_exp2_mm_rowbal_cont3/processor_audit_full/*.jsonl
+data/bricknet_pt_exp2_mm_rowbal_cont3.building/
+data/bricknet_pt_exp2_mm_rowbal_cont3.failed-*/

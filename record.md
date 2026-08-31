@@ -384,11 +384,11 @@ python scripts/launch_bricknet_stage3_sft.py --action train
 Stage 0 已通过；当前 dry-run 仍应被 Pilot 人工 approval、exp4_3/T1-10k paired gate、T2-10k 数据/replay/token
 和 registry 阻断，`training_started=false`。50k/all 不分配版本号或配置。
 
-## PT-exp2 & exp4_4~exp4_6
+## PT-exp2 & exp4_4/exp4_7（以及 dormant exp4_5/exp4_6）
 
-当前 MM 活动序列为 `PT-exp2-text8m → PT-exp2-mm-e1/e2/e3-v2 → PT-exp2-v2 alias`。旧
-`PT-exp2 alias → exp4_4 10k → exp4_5 50k → exp4_6 all` 配置保持冻结，不会静默改绑 v2；下游重绑
-需要在 v2 三轮评测和 alias 选择后另行批准。不创建 PT-exp2 VAL511 训练或验证。详细数据 hash、配置与
+当前 MM 活动序列为 `PT-exp2-text8m → PT-exp2-mm-e1/e2/e3-v2 → PT-exp2-v2 alias`，三轮和 alias
+选择均已完成。旧 `PT-exp2 alias → exp4_4 10k → exp4_5 50k → exp4_6 all` 配置保持冻结，不会静默改绑 v2；
+若下游采用 v2，必须另行批准并显式绑定 `PT-exp2-v2`。不创建 PT-exp2 VAL511 训练或验证。详细数据 hash、配置与
 gate 见 [PT-exp2 runbook](bricknet-pt-exp2.md)。
 
 ### PT-exp2
@@ -400,16 +400,20 @@ final adapter 继续。冻结 v1 数据的 MM/replay `meta` 异构会使 Arrow �
 `id/messages/images` 与 v1 一致。三轮分别使用不重叠的 replay slice（`15,617/15,586/15,667` 条），target tokens 为
 `26,285,287/26,285,922/26,284,707`，replay/MM ratio 为
 `1.0000053/1.0000294/0.9999832`。每次训练 1 epoch，当前固定物理 CUDA 1 单卡 BS2/GA8/global batch 16；
-e1 LR=`2e-5`，e2/e3 LR=`1e-5`。
+e1 LR=`2e-5`，e2/e3 LR=`1e-5`。三轮训练 global/max 为 `9417/9417`、`9415/9415`、`9420/9420`，
+每组 prediction/scored/alignment 均 `512/512`；按 `strict → dense → clean → parsable` 选择 e1。selection
+record 为 `ready=true, executed=true, selected=recommended=mm-e1`，alias 精确指向 e1；完整 metrics/adapter
+hash 见 [experiment_results](experiment_results.md)。
 
 - text8m final：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack`
 - MM e1 v2：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e1_v2_nometa_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400`
 - MM e2 v2：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e2_v2_nometa_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400`
 - MM e3 v2：`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_e3_v2_nometa_qwen35_08b_text8m_mm135k_replay1to1_ep1_bs2_gbs16_lora64_len6400`
 - final alias v2：`saves/Qwen3.5-0.8B-Thinking/lora/PT-exp2-v2`
-- 下游版本：`exp4_4=10k`、`exp4_5=50k`、`exp4_6=all 66,456`
+- 下游版本：同初始化 10k paired 为 `exp4_4=NonThinking-Control`、`exp4_7=Lean-State`；dormant Control 扩容为
+  `exp4_5=50k`、`exp4_6=all 66,456`
 
-下面是当前可复现的手动执行序列。text8m 已完成；v2 MM 的训练、推理和评测全部使用物理 CUDA 1。
+下面是已完成链路的可复现手动执行序列；text8m 与 v2 MM 的训练、推理和评测全部使用物理 CUDA 1。
 v2 使用独立 dataset registry、tokenized cache、adapter、prediction、evaluation 和 alias，不覆盖 v1 或任何旧实验。
 text8m 的 with-length cache 现为 7,698,261 行，含 `input_ids/attention_mask/length`，launcher 复查
 `eligible=true/build_required=false`。通用 PT/SFT 工具为
@@ -468,44 +472,42 @@ python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action train --run mm
 ```bash
 cd /data/jiahao/task/LlamaFactory
 
-# 从 text8m adapter 继续正式训练 MM e1。
+# 已完成：从 text8m adapter 继续训练 MM e1。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action train --run mm-e1 --execute
-# 使用 MM e1 adapter 运行验证集推理。
+# 已完成：使用 MM e1 adapter 运行验证集推理。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action predict --run mm-e1 --execute
-# 评测 MM e1 的推理结果。
+# 已完成：评测 MM e1（base evaluator + alignment）。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action evaluate --run mm-e1 --execute
-# 从 MM e1 adapter 继续正式训练 MM e2。
+# 已完成：从 MM e1 adapter 继续训练 MM e2。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action train --run mm-e2 --execute
-# 使用 MM e2 adapter 运行验证集推理。
+# 已完成：使用 MM e2 adapter 运行验证集推理。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action predict --run mm-e2 --execute
-# e2 评测 preflight；必须确认 512 条 prediction 与标准 VAL512 reference 逐行对齐。
+# 已完成：e2 评测 preflight，确认 512 条 prediction 与标准 VAL512 reference 逐行对齐。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action evaluate --run mm-e2
-# 评测 MM e2；同一命令依次完成 base evaluator 与 alignment worker。
+# 已完成：评测 MM e2（base evaluator + alignment）。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action evaluate --run mm-e2 --execute
-# 从 MM e2 adapter 继续正式训练 MM e3。
+# 已完成：从 MM e2 adapter 继续训练 MM e3。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action train --run mm-e3 --execute
-# 使用 MM e3 adapter 运行验证集推理。
+# 已完成：使用 MM e3 adapter 运行验证集推理。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action predict --run mm-e3 --execute
-# 评测 MM e3 的推理结果。
+# 已完成：评测 MM e3（base evaluator + alignment）。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --gpus 1 --action evaluate --run mm-e3 --execute
-# 人工确认三轮结果后再选 v2 final alias。
+# 已完成：按固定排序选择 v2 final alias（e1 胜出）。
 python scripts/launch_bricknet_pt_exp2_mm_v2.py --action select-final --run mm-e3 --execute --approve
 ```
 
 MM v2 的 evaluate 不再以只有 `metrics.json/structure` 作为完成条件。完整结果必须同时包含 512-row
 `task_alignment` 和 `condition_generation`，其中 Dense Reward、Strict Success、固定 reward weights 与 pose
 tolerance 均通过校验；`alignment_manifest.json` 还绑定 prediction、scored、标准
-`BrickNet-MM_VAL.jsonl`、base manifest、alignment evaluator 及产物 hash。三轮任一缺失或 provenance 漂移时，
-`select-final` 返回 `WAIT_*_TASK_ALIGNMENT`，不会创建 alias。串行脚本会在每个 evaluate 前自动运行同样的 dry-run；
-已启动的脚本虽不热加载 shell 函数修改，但 e2/e3 会各自启动更新后的 launcher，所以无需暂停当前训练链。
-2026-08-20 已用同一 launcher 对既有 e1 base 结果执行 alignment-only 回填：base evaluator 未重跑，
-`alignment_input.jsonl/alignment.jsonl` 均为 512 行，`alignment_manifest.json` 为 `status=complete`；e2/e3
-继续由原 batch 运行，最终结果账本与 alias 选择等待三轮全部完成。
+`BrickNet-MM_VAL.jsonl`、base manifest、alignment evaluator 及产物 hash。当前 e1/e2/e3 三轮均已通过该 gate，
+selection record 已执行并创建 alias。2026-08-20 e1 曾由同一 launcher 执行 alignment-only 回填；随后 e2/e3
+也完成了各自 prediction/evaluate。原 2026-08-21 14:06 batch 在 e3 PE 阶段因并发显存 OOM 退出码 1，
+但 e3 于 14:37 完成补评、14:48 完成选择；旧失败日志不覆盖当前结果。
 
-也可用 fail-closed 串行脚本依次执行 `e1 train/predict/evaluate → e2 → e3`。该入口按用户批准将九个阶段全部
+也可用 fail-closed 串行脚本复现 `e1 train/predict/evaluate → e2 → e3`。该入口按用户批准将九个阶段全部
 固定到物理 CUDA 1；训练为单卡 BS2/GA8/global batch 16，推理和评测也使用 CUDA 1。脚本中的 GPU 空闲等待
 已注释，不以现有 compute process 阻断；每步仍先运行 launcher dry-run、完整阶段自动跳过，并把输出追加到
-同目录 nohup 日志。不包含最终 alias 人工选择：
+同目录 nohup 日志。该历史入口不执行最终 alias 人工选择；当前 alias 已由独立 selection record 冻结。
 
 ```bash
 cd /data/jiahao/task/LlamaFactory
@@ -523,23 +525,384 @@ non-packing、`cutoff_len=6401`、250k steps、global batch 32。
 做 collision filtering，官方 `train.py` 在训练加载阶段不再次 parse/collision 筛除。依用户决策，当前
 `collision_findings_block_training=false`、`audit.eligible=true`，不删除样本；31-shard `text8m_train` 视图已创建。
 当前 v2 三份 JSONL 已通过 Arrow 完整物化、逐行语义投影、真实 LlamaFactory `get_dataset`、Qwen
-processor 全池零截断及 launcher 绑定检查。v2 e1 `ready=true`；e2/e3 当前只等待前一轮 v2 final
-adapter。正式 v2 MM 训练尚未启动。launcher 会报告 CUDA 1 上的进程但不以占用作为 blocker；
-并存任务仍可能导致 OOM。
+processor 全池零截断及 launcher 绑定检查。三轮训练、推理和评测均已完成，alias 选择 e1；launcher 报告
+CUDA 1 上的进程但不以占用作为 blocker。原 e3 PE OOM 只作历史故障 provenance，后续补评 artifact 为当前状态。
 
-### exp4_4
+### PT-exp2-mm-rowbal-cont3（连续三 epoch，ep1/ep2/ep3 prediction/evaluation 完成，推荐 checkpoint-33764）
+
+状态：`training complete / valid; ep1/ep2/ep3 prediction/evaluation complete/valid; recommended=checkpoint-33764 (point-estimate rule; no alias)`。
+固定数据集、配置和
+launcher 已建立，标准 tokenized cache 已于 `2026-08-26 16:04 +08:00` 完成并通过校验；实际 Arrow train split
+为 `270102` 行，列含 `input_ids/attention_mask/labels/images/videos/audios/length`，`length mismatch=0`。
+新 launcher 的 `prepare-cache` dryrun 为 `ready=true, blockers=[]`；`train --gpus 1` dryrun 为
+`executed=false`，内部 gate 全部通过；在 handoff 启动前唯一 blocker 是当时的 CUDA1 计算进程 PID=`2773643`。
+该历史 dryrun 时训练输出目录不存在。
+该实验从冻结 text8m 250k adapter 直接开始，在同一 Trainer 进程中以相同的 `270102` 行数据连续训练 3 个
+epoch（每 epoch `135051` MM + `135051` text），并按 epoch 保存完整 checkpoint。正式训练于
+`2026-08-27 07:28:30 +08:00` 开始并已有效完成；ep1/ep2/ep3 prediction/evaluation 均已完成并验证，最终按
+`strict → dense → clean → parsable` 的点估计固定规则推荐 `checkpoint-33764`。这是事实排序，不宣称显著性；不创建
+alias 或下游绑定。
+
+2026-08-27 07:27:45 +08:00 上游 Text250k wrapper 已写出完成证据和 `exit status=0`，PID=`2773476` 已退出并清理
+pidfile。handoff PID=`2909872` 于 07:28:01 严格验证 `exp4_4_2`/`exp4_7_2` evaluate dryrun gates（`ready=true`、
+`already_complete=true`、`checks.output_complete=true`、`blockers=[]`）后记录 `stage_start rowbal_train`；07:28:30
+实际启动 rowbal 训练。启动参数为 `270102` examples、3 epochs、`16882` update steps/epoch、总 `50646` steps、
+device BS2、GA8、global16、CUDA1。07:28:52 有一次 `CUDACachingAllocator allocation failed` warning，训练继续且
+至少推进到 step 90；该 warning 非 fatal，不表示实验失败。当时尚未填最终结果或 ETA，后续 checkpoint 状态见下。
+
+2026-08-27 17:53:57 +08:00，epoch1 的 `checkpoint-16882` 已完整落盘并经复核有效：
+`/data/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_rowbal_cont3_qwen35_08b_text8m250k_mm135051_text135051_ep3_bs2_gbs16_lora64_len6400/checkpoint-16882`。
+`adapter_model.safetensors`、`adapter_config.json`、`trainer_state.json`、`optimizer.pt`、`scheduler.pt`、
+`rng_state.pth` 均齐全；`trainer_state` 为 `global_step=16882`、`epoch=1.0`、`max_steps=50646`。
+保存后训练正常继续。2026-08-28 04:23:04 +08:00，epoch2 的 `checkpoint-33764` 已完整落盘并由主代理复核有效：
+`/data/jiahao/task/LlamaFactory/saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_mm_rowbal_cont3_qwen35_08b_text8m250k_mm135051_text135051_ep3_bs2_gbs16_lora64_len6400/checkpoint-33764`。
+该目录的 `adapter_model.safetensors`、`adapter_config.json`、`trainer_state.json`、`optimizer.pt`、
+`scheduler.pt`、`rng_state.pth` 均齐全且稳定可读；`trainer_state` 为 `global_step=33764`、`epoch=2.0`、
+`max_steps=50646`。保存后训练继续，04:30 已推进到 step=`33956`；当前仍为
+`training/running`，最终 ETA 约为 2026-08-28 14:50 +08:00；该段为训练中的历史快照。最新完成状态见下方。
+
+2026-08-28 14:55:45 +08:00，连续三 epoch 训练以 `stage_complete` 成功完成：
+`trainer_state.global_step=50646`、`epoch=3`、`max_steps=50646`，`train_loss=0.2540496625`、
+`runtime=113205.8521s`、`train_steps_per_second=0.447`。`checkpoint-50646` 和根输出目录的 adapter
+均已完整落盘并通过训练完成校验；这部分状态为 `valid`，不是失败。
+
+原 handoff 随即尝试进入 ep1，但因可用磁盘空间低于 `40 GiB` 的安全门退出（exit `1`），没有启动 prediction；
+这是当时的历史状态。为解除该磁盘门，主代理删除了一个明确可重建且没有活动引用的旧
+cache：`/data/jiahao/task/LlamaFactory/.llamafactory_cache/tokenized_dataset/PT-exp2-text7698261-qwen35-08b-len6401-nopack`
+（`64,769,798,144` bytes）；正式使用的独立 `...nopack-with-length` cache 未删除，原始数据仍保留，该 cache 可按既有
+prepare-cache 命令重建。可用空间约由 `30.5 GiB` 恢复至 `90.7 GiB`。
+
+删除后 ep1 dry-run 已返回 `ready=true`；随后两次恢复被物理 CUDA1 上 mingyang 的短/长任务安全门阻止，
+这些均为当时的历史状态，不能终止或干扰他人进程。
+
+#### ep1 prediction/evaluation 已完成（2026-08-28 23:58:23 +08:00）
+
+- 使用已验证的 `checkpoint-16882`；prediction 为 `512/512`，runtime=`11238.3337s`，BLEU-4=`79.8114`、
+  ROUGE-1=`91.6656`、ROUGE-2=`62.759`、ROUGE-L=`53.2726`；`generated_predictions.jsonl` SHA-256=
+  `ae573f7970b7cee7888ab600a232a2dee3f4b853b7caf64d091f5c51b69b2172`。
+- base evaluation fully parsable=`404/512`、collision-free=`105/512`、mean actions before first failure=
+  `8.421875`（约 `8.4`）、complete render=`404/404`、render failure=`0`。
+- alignment `samples=512`：parse prefix=`0.9102900774232086`、inventory F1=`0.8155414811184989`、length=
+  `0.809655785706696`、collision prefix=`0.5570950990310708`、pose=`0.12373974525207188`、dense reward=
+  `0.5746728336608469`、strict=`2/512=0.00390625`；PE=`0.27744618028697399`、SigLIP2=
+  `0.76755156375394007`、VQA=`0.74573100058564745`（图像指标样本均为 `404`）。
+- ep1 evaluator exit=`0` at `2026-08-28 23:58:23 +08:00`；`metrics.json` SHA-256=
+  `1a5814a6820e70eaf0ccf667e316765cc4626d88195d5dc3d20c614fd6508bfc`，`alignment_manifest.json` SHA-256=
+  `8243d937d775a44b9f6b73a11c12401b60c6a64eb57891eba2eb1caba288da27`，status=`complete`。
+- 截至该历史条目，ep2 prediction 于 `2026-08-28 23:59:44 +08:00` 在物理 CUDA1 启动并仍在运行，尚未
+  complete/valid；下方 ep2 完成条目已覆盖该快照，不据此推断当前状态。
+
+#### ep2 prediction/evaluation 已完成（2026-08-29 02:51:07 +08:00）
+
+- 使用已验证的 `checkpoint-33764`；prediction 为 `512/512`、exit=`0`，完成于 `2026-08-29 02:40:54 +08:00`，runtime=`9611.6262s`；
+  BLEU-4=`83.8182900390625`、ROUGE-1=`93.14293828125`、ROUGE-2=`64.2137451171875`、ROUGE-L=`53.681630664062496`；
+  `generated_predictions.jsonl` SHA-256=`c156da9d485a2f398478c82742eace44b2adb4d499c7228c09c580dc2f46f8b1`。
+- evaluation exit=`0` at `2026-08-29 02:51:07 +08:00`；fully parsable=`402/512`、clean/collision-free=`113/512`、collision/mean actions before
+  failure=`8.033203125`、render=`402/402`、render failure=`0`。
+- alignment `samples=512`：parse prefix=`0.9183373919040974`、inventory F1=`0.8566068334354298`、length=
+  `0.8518979466795903`、collision prefix=`0.5456691592547537`、pose=`0.13199846714201502`、dense reward=
+  `0.5889120117294198`、strict=`8/512=0.015625`、exact path=`3`；PE=`0.27715973355876866`、SigLIP2=
+  `0.7880970399771163`、VQA=`0.7456277761960504`（图像指标样本均为 `402`）。
+- `metrics.json` SHA-256=`950a8356ca0285cb53494f9b4a8846b90e92c73b7f12dfe4bcf187f7e0c4a17d`；
+  `alignment_manifest.json` SHA-256=`ec1f3aa21cad2e24523396d0b6c724890325ee9856cf74f35e4070882c1be2d5`，status=`complete`。
+  完成后的 evaluate dry-run 仅报告 `EVALUATION_ALREADY_COMPLETE`，这是已完成 artifact 的预期 blocker，不是失败。
+- 相对 ep1，ep2 的 BLEU/ROUGE、clean、parse prefix、inventory F1、length、pose、dense、strict、SigLIP2 均为更高的点估计
+  （ep2 strict `8/512` 对 ep1 `2/512`），但 fully parsable 为 `402/512` 对 `404/512`，collision prefix、mean actions、PE 和
+  VQA 不更高；这是事实比较，不是最终推荐或显著性结论。
+- ep3 prediction/evaluation 已有效完成；最终按固定规则推荐 `checkpoint-33764`，不创建或绑定 alias。
+
+#### ep3 prediction/evaluation 已完成（2026-08-29 05:47:32 +08:00）
+
+- 使用已验证的 `checkpoint-50646`；prediction 为 `512/512`，runtime=`9785.7039s`，BLEU-4=`84.08433886718751`、
+  ROUGE-1=`93.0461208984375`、ROUGE-2=`64.09938632812501`、ROUGE-L=`53.8440525390625`；
+  `generated_predictions.jsonl` SHA-256=`031a7ad92cd0bee16e685e0a02270e8e4b63f3189e50abe416f9cd783991324a`；
+  `predict_results.json` SHA-256=`adaa00298f46a2a3bc7555d6facf2cfc09e9bbcd0c750fbba46fa1d640721d4d`。
+- evaluation 于 `2026-08-29 05:47:32 +08:00` 以 exit=`0` 完成且有效；fully parsable=`405/512`、clean/collision-free=
+  `105/512`、skipped=`107`、render=`405/405`、render failure=`0`。
+- alignment `samples=512`：parse=`0.9130015178424298`、inventory F1=`0.8555066953271355`、length=`0.8465148582783681`、
+  collision prefix=`0.5459210124616339`、pose=`0.1257369235575623`、dense=`0.5852584080213454`、
+  strict=`5/512=0.009765625`、exact path=`0`；PE=`0.27697331934799385`、SigLIP2=`0.77552385447937766`、
+  VQA=`0.73738091385658877`（图像指标样本均为 `405`）。
+- `metrics.json` SHA-256=`0da1cde9c94709dbee596ddfd93a0dd0349535b01c22668d8be2d43c3328ec6e`；
+  `alignment.jsonl` SHA-256=`815fcd28e52a637b88947890ccc4ceaafbb9926b3649d1fb640aff448bba4805`；
+  `alignment_manifest.json` SHA-256=`414e2340bcbc67c740ca28d99a5d5994c4d7fcaadc4e2e6cbf86bdc91ec67d58`，status=`complete`。
+- ep1/ep2/ep3 的固定选择 tuple（strict→dense→clean→parsable）为
+  `ep1=(2/512, 0.5746728336608469, 105, 404)`、
+  `ep2=(8/512, 0.5889120117294198, 113, 402)`、
+  `ep3=(5/512, 0.5852584080213454, 105, 405)`；因此推荐 `checkpoint-33764`。这是点估计排序，不宣称显著性，且不创建 alias。
+
 ```bash
-# 从 PT-exp2 final 正式训练 exp4_4 10k。
-python scripts/launch_bricknet_pt_exp2.py --gpus 0 1 --action train --run exp4_4 --execute
-# 使用 exp4_4 adapter 运行 VAL512 推理。
-python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action predict --run exp4_4 --execute
-# 统一评测 exp4_4 的 VAL512 结果。
-python scripts/launch_bricknet_pt_exp2.py --gpus 0 --action evaluate --run exp4_4 --execute
-# 人工确认 exp4_4 收益并批准扩展到 50k。
-python scripts/launch_bricknet_pt_exp2.py --action approve-scale --run exp4_4 --execute --approve
-# 按冻结 manifest 物化 exp4_5 50k 数据。
-python scripts/launch_bricknet_pt_exp2.py --action materialize --run exp4_5 --execute
+cd /data/jiahao/task/LlamaFactory
+
+# 三 epoch 训练及 ep1/ep2/ep3 prediction/evaluation 已完成；推荐 checkpoint-33764。不要再次执行 train/predict/evaluate，
+# 不创建 alias；以下命令仅保留为已执行顺序记录。
+
+# 首次生成并发布完整 CPU loader/processor 审计；已有完整报告时不要重复执行。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action prepare-audits --processor-workers 4 --processor-chunksize 8 --execute
+
+# 生成带 length 列的标准 tokenized cache；此步骤仅 CPU，不启动 Trainer。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action prepare-cache --cache-num-proc 1 --cache-batch-size 10000 --execute
+
+# 只读训练 preflight；确认 cache、parent adapter、输出目录和 CUDA1 gate。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action train --gpus 1
+
+# 正式连续三 epoch 训练；保存 checkpoint-16882/33764/50646 的完整状态。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action train --gpus 1 --execute
+
+# ep1 已完成 prediction/evaluation；以下 ep1 命令仅保留为已执行的顺序记录。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action predict --run ep1 --gpus 1 --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action evaluate --run ep1 --gpus 1 --execute
+
+# ep2 prediction/evaluation 已完成；以下 ep2 命令仅保留为已执行顺序记录，不要重复启动。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action predict --run ep2 --gpus 1 --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action evaluate --run ep2 --gpus 1 --execute
+
+# ep3 prediction/evaluation 已完成；以下命令仅保留为已执行顺序记录，不要重复启动。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action predict --run ep3 --gpus 1 --execute
+# ep3 evaluation 已于 2026-08-29 05:47:32 +08:00 以 exit=0 完成并通过完整性验证。
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3.py \
+  --action evaluate --run ep3 --gpus 1 --execute
 ```
+
+### PT-exp2-mm-rowbal-cont3 自动 handoff（训练已完成，ep1/ep2/ep3 完成，推荐 checkpoint-33764；禁止重复启动）
+
+2026-08-26 16:32 +08:00 首次以 nohup 启动自动 handoff 监督器
+`tmp_bash/run_pt_exp2_mm_rowbal_cont3_after_text250k_cuda1.sh`，PID=`2905400`。该进程在 16:38 前异常消失，
+没有写出 EXIT 日志；锁已释放，未触碰 CUDA1，也没有启动 rowbal。其旧 PID 文件已移至
+`tmp_bash/run_pt_exp2_mm_rowbal_cont3_after_text250k_cuda1.pid.stale-2905400-20260826T163848`。
+
+2026-08-26 16:39 +08:00 曾通过受工具会话托管的方式恢复 handoff：当时 PID=`2909872`，统一 exec session=`70789`，
+锁处于 held 状态；监督器绑定上游 Text250k wrapper PID=`2773476`，读取其日志从字节偏移 `453661` 开始的本轮
+完成证据。当时仅等待 `exp4_4_2/exp4_7_2` 完整 train→predict→evaluate，不占用 CUDA1，rowbal
+`training_started=false`。只有上游 exit status=`0`、CUDA1 为空闲且两组 evaluate dry-run 均严格返回
+`ready=true/already_complete=true/output_complete=true` 时，监督器才会按顺序执行 rowbal train 以及
+ep1/ep2/ep3 prediction/evaluate；任一 gate 失败都会 fail-closed，不会静默训练。
+
+该 handoff 后续已完成上游 gate、启动并完成 rowbal 训练，随后在 ep1 磁盘安全门处退出；禁止再次启动，尤其不要重新使用
+nohup 重启，以免产生重复 handoff。本文不再提供 handoff 启动命令；如需恢复预测，应先核对日志、锁、外部 CUDA1
+占用和 fail-closed 证据，再由主代理决定后续操作。
+
+当前 handoff 已完成上游 completion gate 并启动、完成 rowbal 训练；原 handoff 在 ep1 的磁盘安全门处退出。
+ep1 prediction/evaluation 已于 `2026-08-28 23:58:23 +08:00` 完成，ep2 prediction/evaluation 已于
+`2026-08-29 02:51:07 +08:00` 有效完成，ep3 prediction/evaluation 已于 `2026-08-29 05:47:32 +08:00` 有效完成。
+按固定点估计规则推荐 `checkpoint-33764`；禁止重复启动 handoff，不创建 alias。
+
+只读查看 handoff 日志、进程和物理 CUDA1 占用：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+tail -f tmp_bash/run_pt_exp2_mm_rowbal_cont3_after_text250k_cuda1.log
+ps -o pid,ppid,stat,etime,%cpu,%mem,cmd -p 2909872,2773476
+nvidia-smi -i 1 --query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits
+```
+
+### exp4_4 / exp4_7（PT-exp2-v2，物理 CUDA1 单卡）
+
+2026-08-25 已新增隔离的 `PT-exp2-v2` 下游入口。`exp4_4` 使用 NonThinking-Control 10k；`exp4_7`
+只把监督数据替换为 Stage2 V2 Thinking-Hard Lean-State 10k。两组都从同一个 `PT-exp2-v2` e1 alias
+独立创建新 LoRA，不互相串接，也不修改旧 `PT-exp2`/`exp4_4` 模板。训练协议均为 BS1、GA16、global
+batch 16、3 epochs、LR `5e-5`、LoRA 64/128、`cutoff_len=16384`，并固定物理 CUDA1。
+
+当前两份训练 processor audit（10,000+10,000）和两份 VAL audit（512+512）均为 0 error、0 truncation，
+Control/Lean-State 的 ordered IDs 分别一致。以下 audit 命令只在报告缺失或数据/processor 漂移时重建；
+现有报告上重建必须显式增加 `--overwrite`。
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+CUDA_VISIBLE_DEVICES='' HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+/home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_reasoning_tokens.py \
+  --stage 2 --audit-purpose pt_exp2_v2_downstream_train_pair \
+  --dataset NonThinking-Control=/data/jiahao/task/LlamaFactory/data/bricknet_stage2/10k/BrickNet-Stage2-NonThinking-Control.jsonl \
+  --dataset Thinking-Hard-V2-Lean-State=/data/jiahao/task/LlamaFactory/data/bricknet_stage2_v2/10k/BrickNet-Stage2-ThinkingHard-V2-LeanState.jsonl \
+  --bricknet-root /data/jiahao/task/BrickNet \
+  --output-dir /data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/pt_exp2_v2_downstream/reports/token_audit/train10k \
+  --cutoff-len 16384 --workers 4 --chunksize 16
+
+CUDA_VISIBLE_DEVICES='' HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+/home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/audit_bricknet_reasoning_tokens.py \
+  --stage 2 --audit-purpose pt_exp2_v2_downstream_eval_pair \
+  --dataset NonThinking-Control-VAL512=/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/validation/datasets/BrickNet-Stage2-NonThinking-Control-VAL512-Eval.jsonl \
+  --dataset Thinking-Hard-V2-Lean-State-VAL512=/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/stage2_v2/validation/datasets/BrickNet-Stage2-ThinkingHard-V2-LeanState-VAL512-Eval.jsonl \
+  --bricknet-root /data/jiahao/task/BrickNet \
+  --output-dir /data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM-Reasoning/pt_exp2_v2_downstream/reports/token_audit/eval_val512 \
+  --cutoff-len 16384 --workers 4 --chunksize 16
+```
+
+#### 2026-08-25 exp4_4 alignment manifest 修复与安全回填
+
+原 batch 已完成 `exp4_4` 的 1,875/1,875-step 训练、512/512 推理和数值评测，但当时的通用 Stage2
+evaluator 没有生成新下游 launcher 要求的 `alignment_manifest.json`，因此在进入 `exp4_7` 前 fail-closed
+停止。修复后的 evaluator/launcher 使用同一完整 manifest 契约。下面命令先只读识别“数值完整、manifest 缺失”，
+再对标准 VAL512 reference、alignment/scored 逐行关系、输入输出 hash 和聚合指标做严格验证；验证通过时只原子
+回填 manifest，不调用评测子进程，也不重跑 train、predict、render 或 numeric evaluation。当前再次执行时会因
+完整 gate 已通过而安全 no-op。
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+# 只读检查：回填前实际为 numeric_evaluation_complete=true、alignment_manifest_complete=false。
+conda run -n llamafactory --no-capture-output \
+  python scripts/evaluate_bricknet_stage2.py --experiment exp4_4
+
+# 已执行的安全回填；当前重复执行会复用完整结果，不重算数值评测。
+conda run -n llamafactory --no-capture-output \
+  python scripts/evaluate_bricknet_stage2.py --experiment exp4_4 --execute
+
+# 固定 manifest 身份，并重新检查 evaluator 与下游 launcher 的完整完成 gate。
+EXP44_ALIGNMENT_MANIFEST=/data/jiahao/task/BrickNet/outputs_val/qwen35_08b/eval_exp4_4_PT_exp2_v2_nonthinking_control_10k_val512_in16384_out16384_p95_t1_k20/alignment_manifest.json
+test -f "$EXP44_ALIGNMENT_MANIFEST"
+sha256sum "$EXP44_ALIGNMENT_MANIFEST"
+test "$(sha256sum "$EXP44_ALIGNMENT_MANIFEST" | awk '{print $1}')" = \
+  c8b064186ddc3fc7c4cc8aeba88712c0f5d9f10018722a8a9e7a2ab70f184ba8
+
+conda run -n llamafactory --no-capture-output \
+  python scripts/evaluate_bricknet_stage2.py --experiment exp4_4
+/home/jiahao/miniconda3/envs/llamafactory/bin/python \
+  scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  --run exp4_4 --action evaluate --gpus 1
+```
+
+当前 manifest schema 为 `bricknet-stage2-alignment-v1`，
+SHA-256=`c8b064186ddc3fc7c4cc8aeba88712c0f5d9f10018722a8a9e7a2ab70f184ba8`，
+`freeze.mode=verified_numeric_backfill`。回填后 evaluator 为 `already_complete=true`，下游 launcher 为
+`output_complete=true`。冻结指标为 train loss=`0.1477434707`、parsable=`407/512`、clean=`122/512`、
+Dense Reward=`0.6062629319`、Strict Success=`11/512`。
+
+#### 2026-08-26 exp4_7 全链完成与冻结
+
+`exp4_7` 训练于 `2026-08-25 19:01:05~19:01:24 +08:00` 完成并通过 train gate。`trainer_state.global_step=max_steps=1875`，
+train_results/all_results 一致，train loss=`0.10565751036008199`，train runtime=`10756.4909s`，
+`num_input_tokens_seen=90109152`；derived throughput=`8377.19 token/s`、samples/s=`2.789`、steps/s=`0.174`。
+adapter_config SHA-256=`30898fb95cb02bb51edbd28c48f38f203825e8956bc1226e111eabceefc51ef6`，
+adapter_model.safetensors SHA-256=`c8ad92be7a6091fc5f2198fc6efe8391d6e32e321d79156e16df2a294d1d69f6`。
+
+prediction 目录为
+`saves/Qwen3.5-0.8B-Thinking/lora/eval_exp4_7_PT_exp2_v2_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20`，
+512 rows，runtime=`30150.9915s`、samples/s=`0.017`；`generated_predictions.jsonl` SHA-256=
+`c6800800648b9e234632f579c8ddf6507a4c4bca2186f8c5bb7016c9cf0ae92e`，`path_predictions.jsonl` SHA-256=
+`d0e9fc35e50d9d87644aa6f51bac3057b23a2087399a3baec7b1765f09881c19`，`trace_extraction_report.json` SHA-256=
+`adc42d5826ddfdce543b24783f999b8b487c612373e3b2acf33c3cd731f1f41c`。
+
+Stage-2 evaluation 目录为
+`/data/jiahao/task/BrickNet/outputs_val/qwen35_08b/eval_exp4_7_PT_exp2_v2_thinking_hard_v2_lean_state_10k_val512_in16384_out16384_p95_t1_k20`；
+`scored.jsonl`、`alignment_input.jsonl`、`alignment.jsonl` 均为 512 rows，renders/PE/SigLIP2/VQA 均为 409，fully
+parsable 为 409 且无 render failure。核心指标：parsable=`409/512=0.798828125`、clean=`125/512=0.244140625`、
+Dense Reward=`0.6046798092343368`、Strict=`13/512=0.025390625`、inventory F1=`0.8982252851027394`、
+length=`0.8977633625091882`、pose=`0.1457130516560686`、exact path=`0`、BLEU4=`90.033721875`、
+ROUGE1/2/L=`94.8887908203125/65.453983984375/55.00614921875`、PE/SigLIP2/VQA=
+`0.2794995296263753/0.8000668227526845/0.7507266265438064`。
+
+`metrics.json` SHA-256=`5d042bd093234860f926fd459e78243e60729c612bc6dbc18270ba245fec852d`；
+`evaluation_manifest.json` SHA-256=`7bdd6168c74414ae64fbc817785e49cba3030c11e7acaf88ca88b86506ad07dd`；
+`alignment_manifest.json` SHA-256=`d748e37596c1f523a817ede44cc59b499e42da5aafe31c16da529447c4585b7c`，schema=
+`bricknet-stage2-alignment-v1`、status=`complete`、freeze=`post_evaluation_freeze`。两个只读 launcher 最终审计
+均为 `ready=true`、`already_complete=true`、无 blockers；manifest identity/artifact hash 契约通过，相关回归
+`10 passed`。Transformers docstring `[ERROR]` 仅为非致命 warning，不影响 wrapper exit 0。
+
+`trace_extraction_report.json` 的 `trace_contract=lean-state-v1-internal-consistency`，`count=512`、
+`trace_format_valid=34`、`trace_format_rate=0.06640625`、`nonempty_extracted_prefix=511`、
+`reference_labels_valid=512`，trace errors 总计 478；主要为 action1 mismatch 261、action0 mismatch 84、
+action2 mismatch 17、action3 mismatch 10。canonical path 的 512 条数值评测与 alignment manifest 契约有效，
+但 Lean-State 内部一致性很差，不能声称可靠状态追踪；这是模型输出质量信号，不是 evaluator/launcher 失败。
+
+同初始化 `exp4_4` 对照为 parsable=`407`、clean=`122`、dense=`0.6062629319122218`、strict=`11`、
+inventory F1=`0.9049767466390838`、length=`0.884054956309081`、pose=`0.13778809824321342`；
+`exp4_7-exp4_4` 的 parsable/clean/strict/length/pose 点估计上升而 dense/inventory 下降。尚未运行 paired
+bootstrap，结论只能写成混合点估计，不能宣称显著优胜或选出赢家；`exp4_5/exp4_6` 继续 dormant。
+
+串行 wrapper `/data/jiahao/task/LlamaFactory/tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.sh` 及同名 `.log`
+于 `2026-08-26 03:34:07 +08:00` 记录 `complete`、exit status=`0`；PID=`2099550` 已退出，物理 CUDA1 空闲。
+
+修复的定向测试和静态检查可直接执行如下；最终完整套件实测 pytest 为 `10 passed`，两个 Python 文件的
+`py_compile` 与相关 diff check 均通过：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+/home/jiahao/miniconda3/envs/openpi/bin/python -m pytest -q \
+  --confcutdir=tests/eval \
+  tests/eval/test_bricknet_stage2_alignment_manifest.py
+
+/home/jiahao/miniconda3/envs/llamafactory/bin/python -m py_compile \
+  scripts/evaluate_bricknet_stage2.py \
+  scripts/launch_bricknet_pt_exp2_v2_downstream.py
+
+git diff --check -- \
+  scripts/evaluate_bricknet_stage2.py \
+  scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  tests/eval/test_bricknet_stage2_alignment_manifest.py
+```
+
+#### 六阶段恢复入口
+
+推荐入口先执行全链静态 preflight，再按 `exp4_4 train→predict→evaluate→exp4_7 train→predict→evaluate`
+自动顺序运行。preflight 和正式入口都会 fail-closed 检查物理 GPU1；它们不会自行终止占用进程。
+初次六阶段 preflight 于 `2026-08-25T01:12:52+08:00` 通过；原 batch PID=`1696595` 在完成 exp4_4
+数值 artifact 后因上述 manifest 缺口退出。契约修复和回填后，全链 preflight 再次通过；串行 launcher 于
+`2026-08-25T15:54:51+08:00` 恢复并于 `2026-08-26 03:34:07 +08:00` 完成，exit status=`0`，PID=`2099550`
+已退出、CUDA1 空闲。恢复入口对三个完整 `exp4_4` stage 均安全 no-op，随后完成 `exp4_7` 的 train/predict/evaluate；
+两个只读 launcher 最终 `ready=true/already_complete=true`、无 blockers，回归 `10 passed`。
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+bash tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.sh --preflight-only
+
+# 可靠独立会话启动。当前 batch 存活时拒绝重启，避免改写其 PID 文件。
+EXP47_BATCH_PID_FILE=tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.pid
+if test -s "$EXP47_BATCH_PID_FILE" && \
+   kill -0 "$(cat "$EXP47_BATCH_PID_FILE")" 2>/dev/null; then
+  printf 'batch already running: PID=%s\n' "$(cat "$EXP47_BATCH_PID_FILE")"
+else
+  setsid -f bash -c '
+    printf "%s\n" "$$" > tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.pid
+    exec bash tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.sh
+  ' </dev/null >/dev/null 2>&1
+fi
+
+# 已完成 batch：exp4_4 三阶段均安全 no-op；exp4_7 已完成 train/predict/evaluate，wrapper exit status=0，
+# PID=2099550 已退出，CUDA1 空闲。
+BATCH_PID=2099550
+cat tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.pid
+ps -o pid,ppid,pgid,sid,stat,etime,cmd -p "$BATCH_PID"
+test "$(cat tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.pid)" = "$BATCH_PID"
+tail -F tmp_bash/run_exp4_4_exp4_7_pt_exp2_v2_cuda1.log
+```
+
+需要逐阶段手工执行时，严格使用下面六条；每一条成功后再执行下一条：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  --run exp4_4 --action train --gpus 1 --pt-exp2-v2-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  --run exp4_4 --action predict --gpus 1 --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  --run exp4_4 --action evaluate --gpus 1 --execute
+
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  --run exp4_7 --action train --gpus 1 --pt-exp2-v2-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  --run exp4_7 --action predict --gpus 1 --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_v2_downstream.py \
+  --run exp4_7 --action evaluate --gpus 1 --execute
+```
+
+旧 `scripts/launch_bricknet_pt_exp2.py --run exp4_4` 仍绑定历史 `PT-exp2` alias，不能用于本轮。
+`exp4_5/exp4_6` 继续 dormant；只有本轮 exp4_4 完整结果经独立收益 gate 批准后，才讨论 50k/all。
 
 ### exp4_5
 ```bash
@@ -1091,3 +1454,181 @@ cd /home/jiahao/task/LlamaFactory
 这些入口在 rejection/rollback 数据、80/20 或 70/20/10 supervised-token mix、matched max_steps、Stage5 report、
 processor、initialization 和 dataset hash 任一条件缺失时都会退出，不会静默训练。Stage8 成对评测还会在
 experiment ID、adapter 顺序、首轮 prompt、sampling、seed、预算、Stage5 provenance 或 512 条顺序不一致时拒绝算分。
+
+## PT-exp2 Text250k-only downstream（complete / rowbal 三 epoch 与 ep1/ep2/ep3 完成，推荐 checkpoint-33764，2026-08-29）
+
+`exp4_4_2`（NonThinking-Control）和 `exp4_7_2`（Thinking-Hard V2 Lean-State）已由同一六阶段 wrapper
+按顺序完成 train→predict→evaluate；rowbal handoff 随后已完成三 epoch 训练，ep1/ep2/ep3 prediction/evaluation 均已有效完成。
+按固定点估计规则推荐 `checkpoint-33764`；不创建 rowbal alias。
+两组 train YAML 直接绑定冻结的
+`saves/Qwen3.5-0.8B-Thinking/lora/train_PT_exp2_text8m_qwen35_08b_path7698261_steps250k_bs4_gbs32_lora64_len6401_nopack`；
+其四项输入 hash 与 `global_step=max_steps=250000` 由 launcher fail-closed 校验。两组均为 single-seed
+`seed=42`；统计分析、显著性或 paired 比较等待用户后续明确指令。
+
+先运行只读 preflight（默认不执行；GPU gate 固定物理 CUDA 1）：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_4_2 --action train --gpus 1 --text250k-approved
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_4_2 --action predict --gpus 1 --text250k-approved
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_4_2 --action evaluate --gpus 1 --text250k-approved
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_7_2 --action train --gpus 1 --text250k-approved
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_7_2 --action predict --gpus 1 --text250k-approved
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_7_2 --action evaluate --gpus 1 --text250k-approved
+bash tmp_bash/run_exp4_4_2_exp4_7_2_pt_exp2_text250k_cuda1.sh --preflight-only
+```
+
+逐阶段正式命令（历史逐阶段入口；当前由同一 wrapper 串行执行，禁止手动重复；训练还必须保留
+`--text250k-approved`）：
+
+```bash
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_4_2 --action train --gpus 1 --text250k-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_4_2 --action predict --gpus 1 --text250k-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_4_2 --action evaluate --gpus 1 --text250k-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_7_2 --action train --gpus 1 --text250k-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_7_2 --action predict --gpus 1 --text250k-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_text250k_downstream.py --run exp4_7_2 --action evaluate --gpus 1 --text250k-approved --execute
+```
+
+完整六阶段后台入口（历史启动入口；当前 wrapper 已运行，禁止重复启动；wrapper 自带 lock/log/PID 和 fail-stop）：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+nohup bash tmp_bash/run_exp4_4_2_exp4_7_2_pt_exp2_text250k_cuda1.sh >/dev/null 2>&1 &
+```
+
+### 正式启动状态（2026-08-26 13:40 +08:00；当前 handoff 状态另见上文）
+
+- 六阶段 wrapper preflight exit=`0` 后已正式启动，wrapper PID=`2773476`；固定顺序仍为
+  `exp4_4_2 train -> predict -> evaluate -> exp4_7_2 train -> predict -> evaluate`。
+- 当时执行 `exp4_4_2` train 的首次 token-cache 构建；`exp4_7_2` 尚未启动并由同一 wrapper 排队。
+- 当时没有新 VAL512 denominator 或指标；paired bootstrap、显著性检验和跨实验统计均未启动，等待两个实验
+  的评测指标完成后由用户另行指示。
+
+### `exp4_4_2` 完成、`exp4_7_2` 启动（2026-08-26 19:46 +08:00）
+
+- `exp4_4_2` train 完成：`global_step=max_steps=1875`、train loss=`0.15205654106140137`、runtime=
+  `11362.8679s`；最终 adapter config/model SHA-256 分别为
+  `75eb487d1fa1bb7fc48a1bdb489c1c4e570442d6df4132ea8cd4b34d605f3808` /
+  `ae1b4b386ff779f0e6886e16287db2779147de7b1778e3c56194aaf9f73fc77a`。
+- prediction 为 512 rows，runtime=`9453.7019s`；`generated_predictions.jsonl` SHA-256=
+  `14f07b478c8847f7706d7b2f94ed9033df9b9a39df028950cd039a48906cb0b7`。
+- evaluation 的 generated/path/scored/alignment_input/alignment 均为 512 rows；409 个 fully parsable 样本均
+  完成渲染和三项图像指标，render failure=`0`。核心指标：parsable=`409/512`、clean=`117/512`、Dense=
+  `0.5984927319348795`、Strict=`14/512`、inventory F1=`0.8837379571053656`、length=
+  `0.8651899315810889`、collision prefix=`0.5350824952247927`、pose=`0.14479307335952754`。
+- `metrics.json` SHA-256=`bb2ced3a221d3a38d94bbf2c7396b36ed1532514b9d28ce2366d180cf6b917c0`；
+  `alignment_manifest.json` SHA-256=`b29c5dc929464f5d95a7a90358c1e30c4e97845966f06f8ed533fdcfd6b9fea8`，
+  status=`complete`、freeze=`post_evaluation_freeze`。结果有效。
+- wrapper 已通过 completion gate 进入 `exp4_7_2` train；当前尚无 `exp4_7_2` 指标。未运行跨实验统计、
+  paired bootstrap 或显著性检验。
+
+### Text250k-only 六阶段完成（2026-08-27 07:27 +08:00）
+
+- `exp4_7_2` train 完成：`global_step=max_steps=1875`、train loss=`0.10840269915262858`、runtime=
+  `10780.8035s`；最终 adapter config/model SHA-256 分别为
+  `e90bb5e9a75d722954d97b2845813d2af640586bc5ddbdf6735fdcf5823a1dd2` /
+  `f909b6ce6c6f33cb8474fbe432ac68d4a7a2cdcf1d0483eefb73750f34c964c9`。
+- prediction 为 512 rows，runtime=`30490.9119s`；generated/path SHA-256 分别为
+  `ec1a6002bed26936e681aacc4ad49f007803b13a1b9c4ff69e774ee29eae396a` /
+  `86618878002cf475c55a81c64d150950a78be5252f490f4eadc33ef78fc93237`。
+- evaluation 的五个核心 JSONL 均为 512 rows；423 个 fully parsable 样本均有完整 8-view render 与
+  PE/SigLIP2/VQA，render failure=`0`。核心指标：parsable=`423/512`、clean=`130/512`、Dense=
+  `0.608682876136042`、Strict=`11/512`、inventory F1=`0.900108828017569`、length=
+  `0.9150935723166516`、collision prefix=`0.5436165505760034`、pose=`0.1396889334201416`。
+- `metrics.json` SHA-256=`4ae6829f4cc65f14e0a855adf334fd0b8e63e7d43661c0a23f56c824046ab716`；
+  `alignment_manifest.json` SHA-256=`41ca88501c1403fafce3c80478cd5e017b1b6609d62b6856e40979950947ff42`，
+  status=`complete`、freeze=`post_evaluation_freeze`。trace-format-valid=`36/512` 作为输出质量字段保留；
+  canonical 512-row 评测与 manifest 契约有效。
+- Text250k wrapper 于 `2026-08-27 07:27:45 +08:00` complete、exit status=`0`，PID=`2773476` 已退出。
+  正式日志中没有 paired bootstrap、McNemar、statistics 或显著性检验命令；本轮到此停止并等待用户指令。
+
+## rowbal-cont3 ep3 downstream（`exp4_4_3` / `exp4_7_3`，historical attempt interrupted / queued / waiting for CUDA0，2026-08-31）
+
+新增两个独立 Stage2 SFT 端点敏感性实验：`exp4_4_3` 使用 NonThinking-Control 10k，
+`exp4_7_3` 使用 Thinking-Hard V2 Lean-State 10k。两者均直接绑定用户指定的
+`PT-exp2-mm-rowbal-cont3` ep3 `checkpoint-50646`，各自新建 SFT LoRA；不使用 alias，不重复加载
+text250k adapter，也不串接两个 SFT adapter。该 ep3 分支是用户指定的 endpoint sensitivity arm；
+rowbal 内部按固定点估计规则推荐的仍是 ep2 `checkpoint-33764`，不得将 ep3 写成“rowbal 最优”。
+
+准备阶段已完成配置、launcher、测试、命令与文档准备。2026-08-30 05:10:50 +08:00 的正式
+preflight exit=`0`，启动前 focused regression=`53 passed`。随后于 05:11:03 +08:00 曾启动
+CUDA0 wrapper `tmp_bash/run_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.sh`，wrapper PID=`1588945`，
+exec session 由主代理持有；该历史尝试的首阶段为 `exp4_4_3 train`，后续状态更正见下文。启动时物理
+CUDA0 为空闲，可用磁盘约 `74 GiB`；训练入口保留显式 `--rowbal-ep3-approved` 要求。
+
+此前准备阶段使用的 CUDA1 wrapper 仅保留作历史入口，不用于本轮；本轮统一使用 CUDA0 launcher 和 wrapper。
+
+逐阶段只读 preflight（本轮已执行并通过；需要复核时可直接执行，不启动实验）：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_4_3 --action train --gpus 0 --rowbal-ep3-approved
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_4_3 --action predict --gpus 0
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_4_3 --action evaluate --gpus 0
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_7_3 --action train --gpus 0 --rowbal-ep3-approved
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_7_3 --action predict --gpus 0
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_7_3 --action evaluate --gpus 0
+bash tmp_bash/run_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.sh --preflight-only
+```
+
+逐阶段正式入口（CUDA0 空闲后由 wrapper 按顺序执行；当前不要单独执行）：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_4_3 --action train --gpus 0 --rowbal-ep3-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_4_3 --action predict --gpus 0 --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_4_3 --action evaluate --gpus 0 --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_7_3 --action train --gpus 0 --rowbal-ep3-approved --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_7_3 --action predict --gpus 0 --execute
+/home/jiahao/miniconda3/envs/llamafactory/bin/python scripts/launch_bricknet_pt_exp2_mm_rowbal_cont3_downstream.py --run exp4_7_3 --action evaluate --gpus 0 --execute
+```
+
+本轮历史启动的六阶段串行入口（早停后待重启，不要重复启动另一实例）：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+nohup bash tmp_bash/run_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.sh >/dev/null 2>&1 &
+```
+
+当前推荐的持久等待入口（已启动，不能重复执行）：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+nohup setsid bash tmp_bash/wait_for_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.sh </dev/null >/dev/null 2>&1 &
+```
+
+该 waiter 已于 `2026-08-31 14:10 +08:00` 启动，当前 PID=`2197540`（PPID=`1`、PGID=SID=`2197540`）；
+不要再次执行上面的启动命令，以免产生重复 waiter。以下均为只读状态检查：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+WAIT_PID_FILE=tmp_bash/wait_for_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.pid
+WAIT_PID=$(sed -n '1p' "$WAIT_PID_FILE")
+printf 'wait PID: %s\n' "$WAIT_PID"
+ps -o pid,ppid,pgid,sid,stat,etime,cmd -p "$WAIT_PID"
+tail -n 40 tmp_bash/wait_for_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.log
+tail -n 40 tmp_bash/run_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.log
+```
+
+wrapper 固定顺序为 `exp4_4_3 train -> predict -> evaluate -> exp4_7_3 train -> predict -> evaluate`，
+并带有 lock/log/PID、`>=40 GiB` 磁盘门、CUDA0 占用门和 fail-stop。它不会杀死或修改已有 GPU
+进程；任一门失败时停止，不继续下一阶段。上次尝试实例 PID=`1588945` 已早停；不得把它视为当前运行实例，
+也不得预填 `_3` 的 prediction/evaluation/metrics 结果。
+
+### 当前状态更正（2026-08-31）
+
+- 上述 `2026-08-30 05:11:03` 启动是一次早停的历史尝试：日志观测到初始 tokenizer/cache 处理约
+  `2500/10000`，训练进度仍为 `0/1875`；该尝试于 `05:15:19` 结束。日志末尾的 `exit status=0`
+  仅是外层 wrapper 返回值，不能作为训练完成证据。
+- 该尝试未形成可用的 train adapter、完整 token-cache、prediction 或 evaluation 产物；
+  `exp4_7_3` 未启动。因此不执行任何中间状态恢复，也不登记新结果。
+- 截至 `2026-08-31`，物理 CUDA0 被其他用户 `lingyu` 的 `PID=1908540`（`python cog5b.py`）占用。
+  不杀死、不暂停、不干预该进程；当前实验状态为 `queued / waiting for CUDA0`。
+- 2026-08-31 14:10 +08:00 已实际启动独立 `nohup+setsid` CUDA0 waiter：PID=`2197540`、PPID=`1`、
+  PGID=SID=`2197540`，日志为 `tmp_bash/wait_for_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.log`。
+  waiter 每 60 秒执行只读检查，不杀死或干预任何进程；仅在 CUDA0 空闲、可用磁盘至少 `40 GiB` 且
+  preflight 通过后，才会 `exec` 原完整串行 wrapper。
+- CUDA0 空闲后，应从 `exp4_4_3 train` 重新运行完整的 fail-stop 串行链
+  `exp4_4_3 train → predict → evaluate → exp4_7_3 train → predict → evaluate`；旧 PID=`1588945`
+  不代表当前仍有运行实例。
