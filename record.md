@@ -1543,7 +1543,15 @@ nohup bash tmp_bash/run_exp4_4_2_exp4_7_2_pt_exp2_text250k_cuda1.sh >/dev/null 2
 - Text250k wrapper 于 `2026-08-27 07:27:45 +08:00` complete、exit status=`0`，PID=`2773476` 已退出。
   正式日志中没有 paired bootstrap、McNemar、statistics 或显著性检验命令；本轮到此停止并等待用户指令。
 
-## rowbal-cont3 ep3 downstream（`exp4_4_3` / `exp4_7_3`，historical attempt interrupted / queued / waiting for CUDA0，2026-08-31）
+## rowbal-cont3 ep3 downstream（`exp4_4_3` / `exp4_7_3`，complete / valid，2026-09-01）
+
+最终状态：两组均已完成 `train → predict → evaluate` 并通过独立验证；详细数值和 canonical 结果记录见
+[`experiment_results.md`](experiment_results.md)。完整串行链由 waiter 于 `2026-08-31 16:34:00 +08:00` 交接，
+于 `2026-09-01 10:14:33 +08:00` 以 exit status=`0` 完成，总耗时约 `17:40:33`；运行 PID 已清理，当前无本项目进程。
+本轮使用物理 CUDA0；完成后 CUDA0 的其他用户占用不影响结果，也未被干预。不要重复启动该 wrapper。
+
+下文的 preflight、早停和资源等待内容均为历史 provenance；其中的 queued/waiting 只描述当时快照，当前状态以本节
+“最终完成证据”为准。
 
 新增两个独立 Stage2 SFT 端点敏感性实验：`exp4_4_3` 使用 NonThinking-Control 10k，
 `exp4_7_3` 使用 Thinking-Hard V2 Lean-State 10k。两者均直接绑定用户指定的
@@ -1591,15 +1599,15 @@ cd /data/jiahao/task/LlamaFactory
 nohup bash tmp_bash/run_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.sh >/dev/null 2>&1 &
 ```
 
-当前推荐的持久等待入口（已启动，不能重复执行）：
+历史持久等待入口（已启动并在完成后退出；不要重复执行）：
 
 ```bash
 cd /data/jiahao/task/LlamaFactory
 nohup setsid bash tmp_bash/wait_for_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.sh </dev/null >/dev/null 2>&1 &
 ```
 
-该 waiter 已于 `2026-08-31 14:10 +08:00` 启动，当前 PID=`2197540`（PPID=`1`、PGID=SID=`2197540`）；
-不要再次执行上面的启动命令，以免产生重复 waiter。以下均为只读状态检查：
+该 waiter 于 `2026-08-31 14:10 +08:00` 启动，PID=`2197540`（PPID=`1`、PGID=SID=`2197540`），
+已在最终串行链完成后退出。不要再次执行上面的启动命令，以免产生重复 waiter。以下均为历史只读状态检查：
 
 ```bash
 cd /data/jiahao/task/LlamaFactory
@@ -1632,3 +1640,559 @@ wrapper 固定顺序为 `exp4_4_3 train -> predict -> evaluate -> exp4_7_3 train
 - CUDA0 空闲后，应从 `exp4_4_3 train` 重新运行完整的 fail-stop 串行链
   `exp4_4_3 train → predict → evaluate → exp4_7_3 train → predict → evaluate`；旧 PID=`1588945`
   不代表当前仍有运行实例。
+
+### 最终完成证据（2026-09-01 10:14:33 +08:00）
+
+- waiter 于 `2026-08-31 16:34:00 +08:00` 通过 CUDA0 空闲、磁盘和 preflight gate 后交接完整串行链；
+  `exp4_4_3 train → predict → evaluate → exp4_7_3 train → predict → evaluate` 于
+  `2026-09-01 10:14:33 +08:00` 以 exit status=`0` 完成，总耗时约 `17:40:33`。运行 PID 已清理，当前无本项目进程。
+- `exp4_4_3` train=`global_step=max_steps=1875`、epoch=`3`、loss=`0.14706837952931723`、runtime=`9550.3512s`；
+  prediction=`512/512`、runtime=`2:34:38.41`；parsable=`406/512`、clean=`123/512`、dense=`0.6059268408483144`、
+  strict=`10/512`、trace-format-valid=`512/512`。
+- `exp4_7_3` train=`global_step=max_steps=1875`、epoch=`3`、loss=`0.10613786784807841`、runtime=`11413.0456s`；
+  prediction=`512/512`、runtime=`8:43:33.35`；parsable=`415/512`、clean=`116/512`、dense=`0.609875326115232`、
+  strict=`12/512`、trace-format-valid=`31/512`、nonempty=`511/512`。该 trace 数字是输出质量 warning，不是 evaluator 失败。
+- 两组的 generated/path/scored/alignment 均为 `512` rows，evaluation/alignment manifest 均为 `complete`。
+  `exp4_4_3` 的 `metrics.json` / `alignment_manifest.json` SHA-256 分别为
+  `fb14f0a334beb0d0fc1ad2321c0e319a04ca5941f83f0127a276b77793b44d74` /
+  `55538e77f948976114e562b6a5e732043adbe3bad2cb5428fcde686209f50208`；`exp4_7_3` 分别为
+  `c922e214c01cfd6c4d8b69e05fbef7b25259d5801cf19313dc19a863f4ea9ff2` /
+  `b0815881ca2a5395936f092dfc7092366c50542b02d6876ffd90dfa5cc296daa`。
+- `exp4_4_3` / `exp4_7_3` 已从 queued/waiting 状态转为 `complete / valid`，不创建 alias；尚未运行 paired
+  bootstrap/statistics，不宣称跨初始化显著 winner。历史早停记录和旧 wrapper PID 仅保留作 provenance。
+
+## Official SFT media render handoff（2026-09-06；validated media，downstream pending）
+
+正式官方 SFT media layer 已完成并通过 strict verify/completion gate。正式状态文件为
+`/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render.status`，其结果为
+`COMPLETE/OK`；strict verify=`PASS`，completion gate=`PASS`；共 `67178` rows、`537424` raw views、
+`67178` collages、`failed=0`。本轮 PT/VAL 不在范围内；本轮仅完成媒体层与 provenance，
+projection、dataset registry、token cache 和训练接线仍为 pending，现有 PT/SFT/评测仍使用 v1 images。
+
+正式数据路径：
+
+```text
+/data/jiahao/task/BrickNet/outputs_gt/sft_8view_renders_v2_rowids
+/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/image_v2_official/SFT
+```
+
+正式 metadata、配置、launcher 和证据：
+
+```text
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_identity.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_progress.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_summary.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_timings.jsonl
+/data/jiahao/task/BrickNet/configs/bricknet_mm_image_v2_official_render.json
+/data/jiahao/task/BrickNet/scripts/render_bricknet_render_8views.py
+/data/jiahao/task/BrickNet/scripts/render_bricknet_render_8views_official.sh
+/data/jiahao/task/BrickNet/scripts/generate_bricknet_sft_completion_gate.py
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render.status
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.log
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.gpu-peaks.tsv
+/data/jiahao/task/LlamaFactory/tmp_bash/sft_official_verify_20260906.log
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_completion_gate.json
+```
+
+最终证据：verify log SHA-256=`9afecbc4717484dd55331b93f496045eff24b2079881e133242b59625d22166a`；
+completion gate SHA-256=`7b68c82e1116aa72d7168c6087858168ca886c57413f841ac3f93b465e325f97`，生成于
+`2026-09-06 02:39 +08:00`。raw/collage logical bytes 分别为 `119394717747` / `22019373017`；
+selected row IDs SHA-256=`c9d740a06f550b750e1fa6af58d3f874e8ec75be87864c0272cb7483b28a62b8`。
+
+渲染身份是 CYCLES/OPTIX、GPU `0,1`、8 views、`512x512`、256 samples、seed `0`。config
+默认 `workers_per_gpu=8`，正式 CLI/supervisor 实际覆盖为 `16/GPU`；迁移和结果解释必须保留这个
+差异。pilot `/data/jiahao/task/BrickNet-Render/tmp/official_sft_pilot_20260902T194605Z-381805`
+只有 32 rows，不是正式全量数据。
+
+### Strict verify 和 completion gate（已通过）
+
+只有严格 verify 日志出现下面的完整 pass marker，才能生成并声称 gate 通过：
+
+```text
+[SFT] verify passed: 67178 rows, exactly 8 views and valid 1024x512 RGB collages
+```
+
+上述 marker 已出现且 strict verify 已 exit `0`；当前 completion gate 已为 `PASS`。verify log 与 gate 的
+SHA-256 和生成时间见上方最终证据。下面命令保留为重建/复核入口；它仍要求 supervisor status、render log、
+GPU peaks 和 strict marker 全部存在，任何证据缺失时 gate 程序都会 fail-closed，不会写出误导性的 gate：
+
+```bash
+set -euo pipefail
+
+export SFT_BRICKNET_ROOT=/data/jiahao/task/BrickNet
+export SFT_VERIFY_LOG=/data/jiahao/task/LlamaFactory/tmp_bash/sft_official_verify_20260906.log
+export SFT_SUPERVISOR_STATUS=/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render.status
+export SFT_RENDER_LOG=/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.log
+export SFT_GPU_PEAKS=/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.gpu-peaks.tsv
+export SFT_META_ROOT="${SFT_BRICKNET_ROOT}/outputs_gt/.bricknet_render_v2_official"
+export SFT_GATE_PATH="${SFT_META_ROOT}/sft_completion_gate.json"
+
+test -s "${SFT_VERIFY_LOG}"
+grep -F \
+  '[SFT] verify passed: 67178 rows, exactly 8 views and valid 1024x512 RGB collages' \
+  "${SFT_VERIFY_LOG}"
+
+cd "${SFT_BRICKNET_ROOT}"
+python scripts/generate_bricknet_sft_completion_gate.py \
+  --config "${SFT_BRICKNET_ROOT}/configs/bricknet_mm_image_v2_official_render.json" \
+  --metadata-root "${SFT_META_ROOT}" \
+  --verify-log "${SFT_VERIFY_LOG}" \
+  --supervisor-status "${SFT_SUPERVISOR_STATUS}" \
+  --render-log "${SFT_RENDER_LOG}" \
+  --gpu-peaks "${SFT_GPU_PEAKS}" \
+  --effective-workers-per-gpu 16 \
+  --output "${SFT_GATE_PATH}"
+
+jq -e \
+  '.status == "PASS" and .scope.split == "SFT" and
+   .scope.out_of_scope == ["PT", "VAL"] and
+   .effective_runtime.config_workers_per_gpu == 8 and
+   .effective_runtime.effective_workers_per_gpu == 16 and
+   .downstream.projection_activated == false and
+   (.metadata_files | has("config") and has("identity") and has("progress") and has("summary") and has("timings")) and
+   .strict_verify.status == "PASS" and
+   .strict_verify.pass_marker_count >= 1 and
+   .supervisor_provenance.status_values.stage == "COMPLETE" and
+   .supervisor_provenance.status_values.result == "OK" and
+   (.supervisor_provenance.gpu_peaks.rows | map(.gpu_id) | sort) == [0, 1]' \
+  "${SFT_GATE_PATH}"
+```
+
+`sft.lock` 是可变 sentinel，不能进入 gate identity 或迁移清单；即使目标端已有 stale lock，也要先
+确认无 render/verify 进程后再由人工决定是否清理，禁止把 lock 当成完成证据。
+
+### 从当前工作区同步到另一台服务器
+
+代码、配置和文档不通过 rsync 整个 dirty worktree：源端先审查相关 diff，选择性提交并 push；目标端
+先查看并保存/提交自身变更，再 `fetch` 和 `pull --ff-only`。这样不会覆盖目标机同名的未提交修改。
+下面的数据 rsync 不使用 `--delete`，源端和目标端路径均显式设置，变量名不依赖 `HOME`。目标目录
+应先确认建议至少 `160 GiB` 可用空间（raw 约 113G、collages 约 21G，metadata/evidence 另计）。
+
+#### 默认 Git 主方案（推荐；不要与 patch fallback 同时执行）
+
+当前两个源仓库实测分支均为 `main`。下面代码块自足：先审查，再选择性 staging，提交前检查 staged
+内容，最后 push；目标端先审查并保存自身变更，再只允许 `pull --ff-only origin main`。如果用户明确选择
+其他分支，统一替换 `SFT_MIG_GIT_BRANCH`，并同步修改 push/pull 参数。
+
+```bash
+set -euo pipefail
+
+export SFT_MIG_TARGET_HOST='jiahao@10.119.46.67'
+export SFT_MIG_SOURCE_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_TARGET_TASK_ROOT=/home/jiahao/task
+export SFT_MIG_SOURCE_BRICKNET="${SFT_MIG_SOURCE_TASK_ROOT}/BrickNet"
+export SFT_MIG_SOURCE_LLAMAF="${SFT_MIG_SOURCE_TASK_ROOT}/LlamaFactory"
+export SFT_MIG_TARGET_BRICKNET="${SFT_MIG_TARGET_TASK_ROOT}/BrickNet"
+export SFT_MIG_TARGET_LLAMAF="${SFT_MIG_TARGET_TASK_ROOT}/LlamaFactory"
+export SFT_MIG_GIT_BRANCH=main
+export SFT_STAGE_ONE_SHOT_LAUNCHER=0
+
+# Source: inspect first, then stage only the reviewed code/config/docs files.
+git -C "${SFT_MIG_SOURCE_BRICKNET}" status --short
+git -C "${SFT_MIG_SOURCE_BRICKNET}" diff --stat
+git -C "${SFT_MIG_SOURCE_BRICKNET}" diff -- \
+  data_preprocess \
+  'BrickNet-MM Agentic LEGO Planner' \
+  scripts/render_bricknet_render_8views.py \
+  tests/test_render_bricknet_render_8views.py
+git -C "${SFT_MIG_SOURCE_LLAMAF}" status --short
+git -C "${SFT_MIG_SOURCE_LLAMAF}" diff --stat
+git -C "${SFT_MIG_SOURCE_LLAMAF}" diff -- SERVER_MIGRATION.md record.md experiment_results.md bricknet-pt-exp2.md
+
+test "$(git -C "${SFT_MIG_SOURCE_BRICKNET}" branch --show-current)" = "${SFT_MIG_GIT_BRANCH}"
+test "$(git -C "${SFT_MIG_SOURCE_LLAMAF}" branch --show-current)" = "${SFT_MIG_GIT_BRANCH}"
+# Existing dirty docs/driver/tests require interactive hunk review; do not stage them wholesale.
+git -C "${SFT_MIG_SOURCE_BRICKNET}" add -p -- \
+  data_preprocess \
+  'BrickNet-MM Agentic LEGO Planner' \
+  scripts/render_bricknet_render_8views.py \
+  tests/test_render_bricknet_render_8views.py
+# New official config/launcher/gate implementation and its test are exact, separately reviewed paths.
+git -C "${SFT_MIG_SOURCE_BRICKNET}" add -- \
+  configs/bricknet_mm_image_v2_official_render.json \
+  scripts/render_bricknet_render_8views_official.sh \
+  scripts/generate_bricknet_sft_completion_gate.py \
+  tests/test_generate_bricknet_sft_completion_gate.py
+# LlamaFactory's four dirty handoff docs also require interactive hunk review.
+git -C "${SFT_MIG_SOURCE_LLAMAF}" add -p -- \
+  SERVER_MIGRATION.md record.md experiment_results.md bricknet-pt-exp2.md
+# Optional provenance: opt in only if this relevant one-shot launcher is intentionally versioned.
+if [[ "${SFT_STAGE_ONE_SHOT_LAUNCHER}" == 1 ]]; then
+  git -C "${SFT_MIG_SOURCE_LLAMAF}" add -- tmp_bash/supervise_official_sft_render.sh
+fi
+# Never stage generated status/log/TSV/GPU-error/PID/lock evidence: supervise_official_sft_render.status,
+# supervise_official_sft_render-*.log, supervise_official_sft_render-*.tsv, *.gpu.error, *.pid, and *.lock.
+
+# Required pre-commit review: inspect all staged changes before either commit.
+for SFT_SOURCE_REPO in "${SFT_MIG_SOURCE_BRICKNET}" "${SFT_MIG_SOURCE_LLAMAF}"; do
+  git -C "${SFT_SOURCE_REPO}" diff --cached --check
+  git -C "${SFT_SOURCE_REPO}" diff --cached --stat
+  git -C "${SFT_SOURCE_REPO}" diff --cached
+done
+# Pause here for human review of the printed staged diff, then commit and push the two main branches.
+git -C "${SFT_MIG_SOURCE_BRICKNET}" commit -m 'Add official SFT render completion gate and handoff'
+git -C "${SFT_MIG_SOURCE_BRICKNET}" push origin "${SFT_MIG_GIT_BRANCH}"
+git -C "${SFT_MIG_SOURCE_LLAMAF}" commit -m 'Document official SFT migration handoff'
+git -C "${SFT_MIG_SOURCE_LLAMAF}" push origin "${SFT_MIG_GIT_BRANCH}"
+
+# Target: inspect its worktrees first. Save/review and commit target-owned changes before pulling.
+ssh "${SFT_MIG_TARGET_HOST}" bash -s -- \
+  "${SFT_MIG_TARGET_BRICKNET}" "${SFT_MIG_TARGET_LLAMAF}" "${SFT_MIG_GIT_BRANCH}" <<'REMOTE'
+set -euo pipefail
+SFT_TARGET_GIT_BRANCH=$3
+for SFT_TARGET_REPO in "$1" "$2"; do
+  cd "${SFT_TARGET_REPO}"
+  test "$(git branch --show-current)" = "${SFT_TARGET_GIT_BRANCH}"
+  git status --short
+  git diff --stat
+  # After the target owner has saved/committed its own changes, continue:
+  test -z "$(git status --porcelain)"
+  git fetch origin "${SFT_TARGET_GIT_BRANCH}"
+  git pull --ff-only origin "${SFT_TARGET_GIT_BRANCH}"
+done
+REMOTE
+```
+
+#### Patch fallback（仅主方案未执行时；不要在 primary 成功后执行）
+
+该代码块与上面的 Git 主方案互斥、且自足。它只生成 tracked 文件 patch；`git diff HEAD` 为空通常表示
+主方案已经提交，遇到这种情况会 fail-closed。未跟踪的 config/launcher/gate/test 仍按下面的显式路径
+另行传输，不能期待它们出现在 patch 中。
+
+```bash
+set -euo pipefail
+
+export SFT_MIG_TARGET_HOST='user@target-server'
+export SFT_MIG_SOURCE_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_TARGET_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_SOURCE_BRICKNET="${SFT_MIG_SOURCE_TASK_ROOT}/BrickNet"
+export SFT_MIG_SOURCE_LLAMAF="${SFT_MIG_SOURCE_TASK_ROOT}/LlamaFactory"
+export SFT_MIG_TARGET_BRICKNET="${SFT_MIG_TARGET_TASK_ROOT}/BrickNet"
+export SFT_MIG_TARGET_LLAMAF="${SFT_MIG_TARGET_TASK_ROOT}/LlamaFactory"
+export SFT_MIG_GIT_BRANCH=main
+export SFT_STAGE_ONE_SHOT_LAUNCHER=0
+
+test "$(git -C "${SFT_MIG_SOURCE_BRICKNET}" branch --show-current)" = "${SFT_MIG_GIT_BRANCH}"
+test "$(git -C "${SFT_MIG_SOURCE_LLAMAF}" branch --show-current)" = "${SFT_MIG_GIT_BRANCH}"
+if git -C "${SFT_MIG_SOURCE_BRICKNET}" diff HEAD --quiet -- \
+    data_preprocess 'BrickNet-MM Agentic LEGO Planner' \
+    scripts/render_bricknet_render_8views.py tests/test_render_bricknet_render_8views.py; then
+  echo 'No BrickNet tracked diff: do not run patch fallback after a successful primary commit.' >&2
+  exit 2
+fi
+if git -C "${SFT_MIG_SOURCE_LLAMAF}" diff HEAD --quiet -- \
+    SERVER_MIGRATION.md record.md experiment_results.md bricknet-pt-exp2.md; then
+  echo 'No LlamaFactory tracked diff: do not run patch fallback after a successful primary commit.' >&2
+  exit 2
+fi
+
+export SFT_MIG_PATCH_OUT=/tmp/bricknet_sft_handoff_reviewed.patch
+git -C "${SFT_MIG_SOURCE_BRICKNET}" diff HEAD --binary -- \
+  data_preprocess \
+  'BrickNet-MM Agentic LEGO Planner' \
+  scripts/render_bricknet_render_8views.py \
+  tests/test_render_bricknet_render_8views.py > "${SFT_MIG_PATCH_OUT}"
+test -s "${SFT_MIG_PATCH_OUT}"
+export SFT_MIG_LLAMAF_PATCH_OUT=/tmp/llamafactory_sft_handoff_reviewed.patch
+git -C "${SFT_MIG_SOURCE_LLAMAF}" diff HEAD --binary -- \
+  SERVER_MIGRATION.md record.md experiment_results.md bricknet-pt-exp2.md > "${SFT_MIG_LLAMAF_PATCH_OUT}"
+test -s "${SFT_MIG_LLAMAF_PATCH_OUT}"
+export SFT_MIG_TARGET_BRICKNET_PATCH=/tmp/bricknet_official_sft_handoff_20260906.patch
+export SFT_MIG_TARGET_LLAMAF_PATCH=/tmp/llamafactory_official_sft_handoff_20260906.patch
+ssh "${SFT_MIG_TARGET_HOST}" "test ! -e '${SFT_MIG_TARGET_BRICKNET_PATCH}' && test ! -e '${SFT_MIG_TARGET_LLAMAF_PATCH}'"
+scp "${SFT_MIG_PATCH_OUT}" \
+  "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_BRICKNET_PATCH}"
+scp "${SFT_MIG_LLAMAF_PATCH_OUT}" \
+  "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_LLAMAF_PATCH}"
+
+# Target: inspect and save/commit target-owned changes before applying either patch.
+ssh "${SFT_MIG_TARGET_HOST}" bash -s -- \
+  "${SFT_MIG_TARGET_BRICKNET}" "${SFT_MIG_TARGET_LLAMAF}" \
+  "${SFT_MIG_TARGET_BRICKNET_PATCH}" "${SFT_MIG_TARGET_LLAMAF_PATCH}" \
+  "${SFT_MIG_GIT_BRANCH}" <<'REMOTE'
+set -euo pipefail
+SFT_TARGET_BRICKNET=$1
+SFT_TARGET_LLAMAF=$2
+SFT_TARGET_BRICKNET_PATCH=$3
+SFT_TARGET_LLAMAF_PATCH=$4
+SFT_TARGET_GIT_BRANCH=$5
+for SFT_TARGET_REPO in "${SFT_TARGET_BRICKNET}" "${SFT_TARGET_LLAMAF}"; do
+  cd "${SFT_TARGET_REPO}"
+  test "$(git branch --show-current)" = "${SFT_TARGET_GIT_BRANCH}"
+  git status --short
+  git diff --stat
+  # The target owner must save/commit its own changes before continuing.
+  test -z "$(git status --porcelain)"
+done
+git -C "${SFT_TARGET_BRICKNET}" apply --check "${SFT_TARGET_BRICKNET_PATCH}"
+git -C "${SFT_TARGET_LLAMAF}" apply --check "${SFT_TARGET_LLAMAF_PATCH}"
+git -C "${SFT_TARGET_BRICKNET}" apply "${SFT_TARGET_BRICKNET_PATCH}"
+git -C "${SFT_TARGET_LLAMAF}" apply "${SFT_TARGET_LLAMAF_PATCH}"
+REMOTE
+
+echo "Both patches passed target git apply --check and were applied; tracked patch files contain no untracked files."
+echo "If either check fails, the target is not on the same baseline; do not force-apply."
+
+ssh "${SFT_MIG_TARGET_HOST}" "mkdir -p \
+  '${SFT_MIG_TARGET_BRICKNET}/configs' \
+  '${SFT_MIG_TARGET_BRICKNET}/scripts' \
+  '${SFT_MIG_TARGET_BRICKNET}/tests' \
+  '${SFT_MIG_TARGET_LLAMAF}/tmp_bash'"
+for SFT_UNTRACKED_PATH in \
+  configs/bricknet_mm_image_v2_official_render.json \
+  scripts/render_bricknet_render_8views_official.sh \
+  scripts/generate_bricknet_sft_completion_gate.py \
+  tests/test_generate_bricknet_sft_completion_gate.py; do
+  test -f "${SFT_MIG_SOURCE_BRICKNET}/${SFT_UNTRACKED_PATH}"
+  rsync -a --partial \
+    "${SFT_MIG_SOURCE_BRICKNET}/${SFT_UNTRACKED_PATH}" \
+    "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_BRICKNET}/${SFT_UNTRACKED_PATH}"
+done
+if [[ "${SFT_STAGE_ONE_SHOT_LAUNCHER}" == 1 && \
+      -f "${SFT_MIG_SOURCE_LLAMAF}/tmp_bash/supervise_official_sft_render.sh" ]]; then
+  rsync -a --partial \
+    "${SFT_MIG_SOURCE_LLAMAF}/tmp_bash/supervise_official_sft_render.sh" \
+    "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_LLAMAF}/tmp_bash/supervise_official_sft_render.sh"
+fi
+```
+
+#### 大数据与 evidence rsync（独立执行；不包含代码仓库）
+
+该代码块只同步 raw、official SFT collage、显式 metadata/gate/evidence，不使用 `--delete`；它可在
+Git 主方案或 patch fallback 完成后独立执行。
+
+```bash
+set -euo pipefail
+
+export SFT_MIG_TARGET_HOST='user@target-server'
+export SFT_MIG_SOURCE_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_TARGET_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_SOURCE_BRICKNET="${SFT_MIG_SOURCE_TASK_ROOT}/BrickNet"
+export SFT_MIG_SOURCE_LLAMAF="${SFT_MIG_SOURCE_TASK_ROOT}/LlamaFactory"
+export SFT_MIG_TARGET_BRICKNET="${SFT_MIG_TARGET_TASK_ROOT}/BrickNet"
+export SFT_MIG_TARGET_LLAMAF="${SFT_MIG_TARGET_TASK_ROOT}/LlamaFactory"
+export SFT_MIG_SOURCE_RAW="${SFT_MIG_SOURCE_BRICKNET}/outputs_gt/sft_8view_renders_v2_rowids"
+export SFT_MIG_SOURCE_COLLAGE="${SFT_MIG_SOURCE_BRICKNET}/outputs_preprocess/BrickNet-MM/image_v2_official/SFT"
+export SFT_MIG_SOURCE_META="${SFT_MIG_SOURCE_BRICKNET}/outputs_gt/.bricknet_render_v2_official"
+export SFT_MIG_TARGET_RAW="${SFT_MIG_TARGET_BRICKNET}/outputs_gt/sft_8view_renders_v2_rowids"
+export SFT_MIG_TARGET_COLLAGE="${SFT_MIG_TARGET_BRICKNET}/outputs_preprocess/BrickNet-MM/image_v2_official/SFT"
+export SFT_MIG_TARGET_META="${SFT_MIG_TARGET_BRICKNET}/outputs_gt/.bricknet_render_v2_official"
+export SFT_MIG_SOURCE_EVIDENCE="${SFT_MIG_SOURCE_LLAMAF}/tmp_bash"
+export SFT_MIG_TARGET_EVIDENCE="${SFT_MIG_TARGET_LLAMAF}/tmp_bash"
+
+ssh "${SFT_MIG_TARGET_HOST}" "mkdir -p \
+  '${SFT_MIG_TARGET_RAW}' \
+  '${SFT_MIG_TARGET_COLLAGE}' \
+  '${SFT_MIG_TARGET_META}' \
+  '${SFT_MIG_TARGET_EVIDENCE}'"
+
+# Formal raw views and collages. No --delete: pre-existing target files are not removed.
+rsync -aH --partial --info=progress2 \
+  "${SFT_MIG_SOURCE_RAW}/" \
+  "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_RAW}/"
+rsync -aH --partial --info=progress2 \
+  "${SFT_MIG_SOURCE_COLLAGE}/" \
+  "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_COLLAGE}/"
+
+# Metadata is explicit. sft.lock is intentionally excluded; the validated gate is mandatory for migration.
+for SFT_METADATA_NAME in sft_identity.json sft_progress.json sft_summary.json sft_timings.jsonl; do
+  test -f "${SFT_MIG_SOURCE_META}/${SFT_METADATA_NAME}"
+  rsync -a --partial --info=progress2 \
+    "${SFT_MIG_SOURCE_META}/${SFT_METADATA_NAME}" \
+    "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_META}/${SFT_METADATA_NAME}"
+done
+test -s "${SFT_MIG_SOURCE_META}/sft_completion_gate.json"
+rsync -a --partial --info=progress2 \
+  "${SFT_MIG_SOURCE_META}/sft_completion_gate.json" \
+  "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_META}/sft_completion_gate.json"
+
+# Evidence is explicit; run after strict verify has stopped writing its log.
+for SFT_EVIDENCE_NAME in \
+  supervise_official_sft_render.status \
+  supervise_official_sft_render-20260902T194605Z-381805.log \
+  supervise_official_sft_render-20260902T194605Z-381805.gpu.tsv \
+  supervise_official_sft_render-20260902T194605Z-381805.gpu-peaks.tsv \
+  sft_official_verify_20260906.log; do
+  test -f "${SFT_MIG_SOURCE_EVIDENCE}/${SFT_EVIDENCE_NAME}"
+  rsync -a --partial --info=progress2 \
+    "${SFT_MIG_SOURCE_EVIDENCE}/${SFT_EVIDENCE_NAME}" \
+    "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_EVIDENCE}/${SFT_EVIDENCE_NAME}"
+done
+# Optional GPU error evidence; an empty .gpu.error is valid and means no recorded GPU error.
+if [[ -f "${SFT_MIG_SOURCE_EVIDENCE}/supervise_official_sft_render-20260902T194605Z-381805.gpu.error" ]]; then
+  rsync -a --partial --info=progress2 \
+    "${SFT_MIG_SOURCE_EVIDENCE}/supervise_official_sft_render-20260902T194605Z-381805.gpu.error" \
+    "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_EVIDENCE}/supervise_official_sft_render-20260902T194605Z-381805.gpu.error"
+fi
+```
+
+如果目标服务器没有同样的 `/home/jiahao/task -> /data/jiahao/task` symlink，媒体副本仍须保留源
+metadata 作为不可变 provenance；目标路径不同只用 rsync checksum/结构 gate 验证同步，禁止手工改写
+已完成 run 的 `sft_identity.json`、`sft_summary.json` 或 gate，也不能通过改路径冒充同一 run。
+`/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/images/SFT`、
+`/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/sharegpt/BrickNet-MM_SFT.json`、
+`/data/jiahao/task/BrickNet/data/bricknet_datasets/sft.npz` 和
+`/home/jiahao/.local/share/bricknet/glb` 仅在要继续复现/重新验证时，按 `sft_identity.json` 中的 hash、
+数量和版本显式补齐，不属于本次默认同步。对应 BrickNet-Render commit、renderer 环境、GPU 和
+dataset/token-cache 配置也只在该场景下按 identity 复核；若要在目标机继续 render 或运行
+identity-bound strict verify，必须保持相同 canonical layout，或新建目标机专用 config 并走明确的
+refreeze/new identity 流程。以上数据 rsync 不传播源端删除；目标端若要清理旧文件，必须先人工审阅
+差异后单独执行。
+
+### rsync dry-run 和目标端计数
+
+先做不读内容的快速 dry-run，再按需用 `-c` 做全量 checksum dry-run；两种命令都不使用 `--delete`。
+正常情况下应没有待传输项。raw views 的 `-c` 会读取约 113G，运行时间可能较长。
+
+```bash
+set -euo pipefail
+export SFT_MIG_TARGET_HOST='user@target-server'
+export SFT_MIG_SOURCE_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_TARGET_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_SOURCE_BRICKNET="${SFT_MIG_SOURCE_TASK_ROOT}/BrickNet"
+export SFT_MIG_TARGET_BRICKNET="${SFT_MIG_TARGET_TASK_ROOT}/BrickNet"
+export SFT_MIG_SOURCE_RAW="${SFT_MIG_SOURCE_BRICKNET}/outputs_gt/sft_8view_renders_v2_rowids"
+export SFT_MIG_SOURCE_COLLAGE="${SFT_MIG_SOURCE_BRICKNET}/outputs_preprocess/BrickNet-MM/image_v2_official/SFT"
+export SFT_MIG_SOURCE_META="${SFT_MIG_SOURCE_BRICKNET}/outputs_gt/.bricknet_render_v2_official"
+export SFT_MIG_TARGET_RAW="${SFT_MIG_TARGET_BRICKNET}/outputs_gt/sft_8view_renders_v2_rowids"
+export SFT_MIG_TARGET_COLLAGE="${SFT_MIG_TARGET_BRICKNET}/outputs_preprocess/BrickNet-MM/image_v2_official/SFT"
+export SFT_MIG_TARGET_META="${SFT_MIG_TARGET_BRICKNET}/outputs_gt/.bricknet_render_v2_official"
+
+# 快速结构/size/mtime dry-run。
+rsync -aHn --itemize-changes --out-format='%i %n%L' \
+  "${SFT_MIG_SOURCE_RAW}/" "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_RAW}/"
+rsync -aHn --itemize-changes --out-format='%i %n%L' \
+  "${SFT_MIG_SOURCE_COLLAGE}/" "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_COLLAGE}/"
+
+# 内容 checksum dry-run（需要完整读取文件，但仍不写入、不删除）。
+rsync -aHnc --itemize-changes --out-format='%i %n%L' \
+  "${SFT_MIG_SOURCE_RAW}/" "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_RAW}/"
+rsync -aHnc --itemize-changes --out-format='%i %n%L' \
+  "${SFT_MIG_SOURCE_COLLAGE}/" "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_COLLAGE}/"
+
+for SFT_METADATA_NAME in sft_identity.json sft_progress.json sft_summary.json sft_timings.jsonl; do
+  rsync -nc --itemize-changes --out-format='%i %n%L' \
+    "${SFT_MIG_SOURCE_META}/${SFT_METADATA_NAME}" \
+    "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_META}/${SFT_METADATA_NAME}"
+done
+test -s "${SFT_MIG_SOURCE_META}/sft_completion_gate.json"
+rsync -nc --itemize-changes --out-format='%i %n%L' \
+  "${SFT_MIG_SOURCE_META}/sft_completion_gate.json" \
+  "${SFT_MIG_TARGET_HOST}:${SFT_MIG_TARGET_META}/sft_completion_gate.json"
+```
+
+目标端计数和命名检查（只读；应输出 `status=PASS`）如下。脚本会 fail-closed：raw/collage root
+本身必须是非 symlink 目录；raw root 的任何非数字目录、非目录项或 symlink，row 目录中的额外/缺失/
+非文件/symlink 项，以及 collage root 的任何非文件、symlink 或非 `<numeric>.png` 项都会令检查失败，
+不会被静默忽略。
+
+```bash
+set -euo pipefail
+export SFT_MIG_TARGET_HOST='user@target-server'
+export SFT_MIG_TARGET_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_TARGET_BRICKNET="${SFT_MIG_TARGET_TASK_ROOT}/BrickNet"
+export SFT_MIG_TARGET_RAW="${SFT_MIG_TARGET_BRICKNET}/outputs_gt/sft_8view_renders_v2_rowids"
+export SFT_MIG_TARGET_COLLAGE="${SFT_MIG_TARGET_BRICKNET}/outputs_preprocess/BrickNet-MM/image_v2_official/SFT"
+
+ssh "${SFT_MIG_TARGET_HOST}" bash -s -- \
+  "${SFT_MIG_TARGET_RAW}" "${SFT_MIG_TARGET_COLLAGE}" <<'PY'
+set -euo pipefail
+raw_root=$1
+collage_root=$2
+python - "$raw_root" "$collage_root" <<'PYTHON'
+from pathlib import Path
+import re, sys
+
+raw = Path(sys.argv[1])
+collage = Path(sys.argv[2])
+if raw.is_symlink() or not raw.is_dir():
+    raise SystemExit(f"raw root must be an existing non-symlink directory: {raw}")
+if collage.is_symlink() or not collage.is_dir():
+    raise SystemExit(f"collage root must be an existing non-symlink directory: {collage}")
+raw_entries = list(raw.iterdir())
+bad_raw_root_entries = [
+    p for p in raw_entries if p.is_symlink() or not (p.is_dir() and re.fullmatch(r"\d+", p.name))
+]
+raw_dirs = [
+    p for p in raw_entries if not p.is_symlink() and p.is_dir() and re.fullmatch(r"\d+", p.name)
+]
+raw_pngs = []
+bad_rows = []
+row_ids = set()
+for row in raw_dirs:
+    rid = int(row.name)
+    row_ids.add(rid)
+    entries = list(row.iterdir())
+    names = {p.name for p in entries}
+    expected = {f"{rid}_{view:04d}.png" for view in range(8)}
+    if (
+        names != expected
+        or len(entries) != 8
+        or any(p.is_symlink() or not p.is_file() or p.name not in expected for p in entries)
+    ):
+        bad_rows.append((rid, sorted(names - expected), sorted(expected - names)))
+    raw_pngs.extend(p for p in entries if not p.is_symlink() and p.is_file() and p.name.endswith(".png"))
+collage_entries = list(collage.iterdir())
+bad_collage_entries = [
+    p for p in collage_entries if p.is_symlink() or not (p.is_file() and re.fullmatch(r"\d+\.png", p.name))
+]
+collages = {
+    p.name for p in collage_entries
+    if not p.is_symlink() and p.is_file() and re.fullmatch(r"\d+\.png", p.name)
+}
+expected_collages = {f"{rid}.png" for rid in row_ids}
+ok = (
+    len(row_ids) == 67178
+    and len(raw_pngs) == 537424
+    and not bad_raw_root_entries
+    and not bad_rows
+    and not bad_collage_entries
+    and collages == expected_collages
+    and len(collages) == 67178
+)
+print(
+    f"raw_rows={len(row_ids)} raw_pngs={len(raw_pngs)} "
+    f"collages={len(collages)} bad_raw_root_entries={len(bad_raw_root_entries)} "
+    f"bad_rows={len(bad_rows)} bad_collage_entries={len(bad_collage_entries)}"
+)
+print("status=PASS" if ok else "status=FAIL")
+if not ok:
+    raise SystemExit(1)
+PYTHON
+PY
+```
+
+目标端还要检查 metadata 文件和已验证 gate 均存在且 gate 为 PASS；不要把 `sft.lock` 计入
+metadata 完整性：
+
+```bash
+set -euo pipefail
+export SFT_MIG_TARGET_HOST='user@target-server'
+export SFT_MIG_TARGET_TASK_ROOT=/data/jiahao/task
+export SFT_MIG_TARGET_BRICKNET="${SFT_MIG_TARGET_TASK_ROOT}/BrickNet"
+export SFT_MIG_TARGET_META="${SFT_MIG_TARGET_BRICKNET}/outputs_gt/.bricknet_render_v2_official"
+
+ssh "${SFT_MIG_TARGET_HOST}" bash -s -- "${SFT_MIG_TARGET_META}" <<'PY'
+set -euo pipefail
+meta_root=$1
+for name in sft_identity.json sft_progress.json sft_summary.json sft_timings.jsonl; do
+  test -s "${meta_root}/${name}"
+done
+test -s "${meta_root}/sft_completion_gate.json"
+jq -e '
+  .status == "PASS" and
+  .scope.split == "SFT" and
+  .scope.out_of_scope == ["PT", "VAL"] and
+  (.metadata_files | has("config") and has("identity") and has("progress") and has("summary") and has("timings")) and
+  .strict_verify.status == "PASS" and
+  .supervisor_provenance.status_values.stage == "COMPLETE" and
+  .supervisor_provenance.status_values.result == "OK"
+' \
+  "${meta_root}/sft_completion_gate.json"
+echo 'sft.lock: intentionally excluded from migration identity'
+PY
+```
+
+同步后若要在目标端继续复现渲染，还需重新检查目标的 renderer、GLB inventory、config SHA-256、
+launcher/source SHA-256、GPU 可见性、实际 workers/GPU、dataset registry 和 token cache；这些
+配置/gate/代码任一不同步，都只能把目标端当作媒体查看副本，不能宣称可复现或可继续 downstream。

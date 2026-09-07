@@ -730,3 +730,120 @@ bash examples/train/grpo/plugin/bricknet/grpo_exp0_qwen35_08b_exp3.sh
 ```
 
 请为新训练修改 `output_dir` 和实验编号，避免覆盖已迁移的 exp0。
+
+## 10. 2026-09-06 官方 SFT 媒体渲染交接补充
+
+本节是对上文旧迁移范围的 dated supplement。上文把 `outputs_gt` 和渲染产物列为默认不迁移；
+本轮用户明确要求迁移下面这组已经完成的官方 SFT 媒体，因此本节只对这组新产物作例外说明，
+不改变 PT/SFT/GRPO 的旧迁移策略。本轮 official SFT 收尾的选择性同步不要求默认修改或同步
+`ms-swift`；只有用户另行要求完整 PT/SFT/GRPO 迁移时，才执行上文三仓库迁移方案。上文
+第 9.2/9.3 节的检查仍是 legacy v1 images/和旧迁移的检查，不替代本节的 official SFT
+raw/collage strict verify 与 completion gate。
+
+### 10.1 已完成内容和边界
+
+正式监督器状态为 `COMPLETE/OK`，strict verify 与 completion gate 均为 `PASS`：
+
+```text
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render.status
+run_id=20260902T194605Z-381805
+rows=67178
+raw_views=537424 (67178 x 8)
+collages=67178
+failed=0, skipped=0, stitched=0
+```
+
+本轮只覆盖 `SFT`。`PT` 和 `VAL` 不在本轮渲染范围内；本轮仅完成 validated 媒体层及其 provenance，
+projection、dataset registry、token cache 和训练接线仍为 pending。现有 PT/SFT/评测仍使用 v1 images
+路径和注册，不应因为这些 v2 official 文件已经存在就自动改绑数据集。
+
+主要产物：
+
+```text
+/data/jiahao/task/BrickNet/outputs_gt/sft_8view_renders_v2_rowids
+/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/image_v2_official/SFT
+```
+
+第一条是每个 row 的 8 张独立视角图，命名为 `<row_id>_0000.png` 至
+`<row_id>_0007.png`；第二条是每个 row 的 4x2 拼接图 `<row_id>.png`。正式 metadata namespace
+及摘要为：
+
+```text
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_identity.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_progress.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_summary.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_timings.jsonl
+```
+
+`sft.lock` 是可变的 render/verify sentinel，不是迁移身份文件；迁移时显式列出上面四个 metadata
+文件，排除 `sft.lock`。当前已生成并验证通过的
+`/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_completion_gate.json` 必须
+显式加入同步清单；不能以缺失 gate 的媒体副本声称 validated。
+
+### 10.2 渲染身份、配置和证据入口
+
+本轮使用 CYCLES/OPTIX、物理 GPU `0,1`、8 views、`512x512`、256 samples、seed `0`。
+配置文件是：
+
+```text
+/data/jiahao/task/BrickNet/configs/bricknet_mm_image_v2_official_render.json
+```
+
+配置中的 `workers_per_gpu` 默认值为 `8`；正式 supervisor 通过 CLI 覆盖为实际
+`16 workers/GPU`。迁移或复现时必须同时记录这两个值，不能把 config 默认值误写成实际运行值。
+
+代码和 gate 证据入口：
+
+```text
+/data/jiahao/task/BrickNet/scripts/render_bricknet_render_8views.py
+/data/jiahao/task/BrickNet/scripts/render_bricknet_render_8views_official.sh
+/data/jiahao/task/BrickNet/scripts/generate_bricknet_sft_completion_gate.py
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render.sh
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.log
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.gpu.tsv
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.gpu-peaks.tsv
+/data/jiahao/task/LlamaFactory/tmp_bash/sft_official_verify_20260906.log
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_completion_gate.json
+```
+
+verify log SHA-256=`9afecbc4717484dd55331b93f496045eff24b2079881e133242b59625d22166a`；completion
+gate SHA-256=`7b68c82e1116aa72d7168c6087858168ca886c57413f841ac3f93b465e325f97`，生成于
+`2026-09-06 02:39 +08:00`。raw/collage logical bytes 为 `119394717747` / `22019373017`，
+selected row IDs SHA-256=`c9d740a06f550b750e1fa6af58d3f874e8ec75be87864c0272cb7483b28a62b8`。
+
+当前严格 verify 证据日志为：
+
+```text
+/data/jiahao/task/LlamaFactory/tmp_bash/sft_official_verify_20260906.log
+```
+
+只有该文件包含：
+
+```text
+[SFT] verify passed: 67178 rows, exactly 8 views and valid 1024x512 RGB collages
+```
+
+已出现该 marker，strict verify 已 exit `0`，且 completion gate 当前为 `PASS`；上述 gate 文件和
+verify log 必须在迁移时显式同步。若未来重新运行 verify，仍须重新检查 marker、gate SHA 和 gate schema，
+不得手工创建或改写 `sft_completion_gate.json`。
+
+### 10.3 迁移注意事项
+
+源机的 `/home/jiahao/task` 当前解析到 `/data/jiahao/task`；目标机不一定有同样的 symlink。
+媒体副本必须保留源 metadata 作为不可变 provenance；如果目标路径不同，只用 rsync checksum/结构
+gate 验证同步，禁止手工改写已完成 run 的 `sft_identity.json`、`sft_summary.json` 或 gate，不能
+通过改路径冒充同一 run。若要在目标机继续 render 或运行 identity-bound strict verify，必须保持相同
+canonical layout，或新建目标机专用 config 并走明确的 refreeze/new identity 流程。复现渲染还需要
+与 identity 一致的 BrickNet-Render commit、renderer Python 环境、GLB 库、`sft.npz`、SFT source
+images 和 ShareGPT source JSON；只复制 PNG 不能复现。
+
+`sft.npz`、SFT source images、ShareGPT source JSON 和 GLB inventory 的 hash/数量以
+`sft_identity.json` 为准。目标端还要确认空间足够：正式 raw views 约 113G，collages 约 21G，
+metadata 约 10M；本轮 SFT 同步和完整性验证建议至少保留 160 GiB 可用空间，且 rsync
+过程中不得使用 `--delete`。
+
+pilot 目录
+`/data/jiahao/task/BrickNet-Render/tmp/official_sft_pilot_20260902T194605Z-381805`
+只包含 32 个验收 row（256 raw views、32 collages）；它是 provenance，不是正式全量数据。
+并发测试目录和 `car` acceptance 图片同样不应被当作 SFT 全量输入。可执行的 gate、迁移、
+dry-run 和目标端计数命令见 `record.md` 的同日期补充。

@@ -1,0 +1,12 @@
+run_id=20260902T194605Z-381805
+pid=381805
+stage=COMPLETE
+result=OK
+updated_utc=2026-09-05T15:44:39Z
+config=/data/jiahao/task/BrickNet/configs/bricknet_mm_image_v2_official_render.json
+gpu_ids=0,1
+config_workers_per_gpu=8
+workers_per_gpu=16
+pilot_root=/data/jiahao/task/BrickNet-Render/tmp/official_sft_pilot_20260902T194605Z-381805
+supervisor_log=/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.log
+detail=official SFT render completed successfully

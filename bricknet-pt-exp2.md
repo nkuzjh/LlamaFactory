@@ -442,7 +442,14 @@ Dense=`0.5984927319348795`、Strict=`14/512`；`exp4_7_2` 为 parsable=`423`、c
 `0.608682876136042`、Strict=`11/512`。Text250k wrapper exit status=`0`；尚未运行统计分析或 paired 比较，
 等待用户后续指令。
 
-## rowbal-cont3 ep3 downstream（historical attempt interrupted / queued / waiting for CUDA0，2026-08-31）
+## rowbal-cont3 ep3 downstream（complete / valid，2026-09-01）
+
+最终状态：`exp4_4_3` 与 `exp4_7_3` 均已完成完整 `train → predict → evaluate` 串行链并通过独立验证；
+详细指标、产物和 hash 见 [`experiment_results.md`](experiment_results.md)。waiter 于 `2026-08-31 16:34:00 +08:00`
+交接，完整链于 `2026-09-01 10:14:33 +08:00` 以 exit status=`0` 完成，总耗时约 `17:40:33`；PID 已清理，当前无本项目进程。
+本轮使用物理 CUDA0；完成后 CUDA0 的其他用户占用不影响结果，也未被干预。不要重复启动 wrapper。
+
+以下早停、资源等待和 waiter 内容均为历史 provenance；其中 queued/waiting 只描述当时快照，当前状态以本段最终状态为准。
 
 已按用户批准的实验矩阵准备两个新的独立 SFT 分支：
 
@@ -499,3 +506,77 @@ evaluation 产物，`exp4_7_3` 也未启动。
 PGID=SID=`2197540`，日志为 `tmp_bash/wait_for_exp4_4_3_exp4_7_3_pt_exp2_mm_rowbal_cont3_cuda0.log`。
 该 waiter 每 60 秒只读检查，不杀死或干预任何进程；只有 CUDA0 空闲、可用磁盘至少 `40 GiB` 且
 preflight 通过后，才会 `exec` 原完整串行 wrapper。
+
+### 最终完成证据（2026-09-01 10:14:33 +08:00）
+
+- waiter 于 `2026-08-31 16:34:00 +08:00` 通过 CUDA0、磁盘和 preflight gate 后交接完整串行链；
+  `exp4_4_3 train → predict → evaluate → exp4_7_3 train → predict → evaluate` 于
+  `2026-09-01 10:14:33 +08:00` 以 exit status=`0` 完成，总耗时约 `17:40:33`。PID 已清理，当前无本项目进程。
+- `exp4_4_3`：训练 `global_step=max_steps=1875`、epoch=`3`、loss=`0.14706837952931723`、runtime=`9550.3512s`；
+  prediction=`512/512`、runtime=`2:34:38.41`；parsable=`406/512`、clean=`123/512`、dense=`0.6059268408483144`、
+  strict=`10/512`、trace-format-valid=`512/512`。
+- `exp4_7_3`：训练 `global_step=max_steps=1875`、epoch=`3`、loss=`0.10613786784807841`、runtime=`11413.0456s`；
+  prediction=`512/512`、runtime=`8:43:33.35`；parsable=`415/512`、clean=`116/512`、dense=`0.609875326115232`、
+  strict=`12/512`、trace-format-valid=`31/512`、nonempty=`511/512`。trace 数字是输出质量 warning，不是 evaluator 失败。
+- 两组 generated/path/scored/alignment 均为 `512` rows，evaluation/alignment manifest 均为 `complete`。
+  `exp4_4_3` 的 `metrics.json` / `alignment_manifest.json` SHA-256 为
+  `fb14f0a334beb0d0fc1ad2321c0e319a04ca5941f83f0127a276b77793b44d74` /
+  `55538e77f948976114e562b6a5e732043adbe3bad2cb5428fcde686209f50208`；`exp4_7_3` 为
+  `c922e214c01cfd6c4d8b69e05fbef7b25259d5801cf19313dc19a863f4ea9ff2` /
+  `b0815881ca2a5395936f092dfc7092366c50542b02d6876ffd90dfa5cc296daa`。
+- 两组状态已由 queued/waiting 转为 `complete / valid`；不创建 alias。尚未运行 paired bootstrap/statistics，
+  不宣称跨初始化显著 winner。历史早停记录仅保留为 provenance。
+
+## Official SFT 媒体渲染交接（2026-09-06；validated media；不改变 PT-exp2 downstream）
+
+该条目是 PT-exp2 相关工作区的媒体交接记录，不是 PT-exp2 训练或评测结果。官方 SFT render 的 supervisor
+已以 `COMPLETE/OK` 结束：`67178` rows、`537424` 张 raw 8-view PNG、`67178` 张 collages，最终
+`failed=0`；strict verify=`PASS`、completion gate=`PASS`，媒体层状态为 `validated`。本轮只处理
+SFT 媒体；PT/VAL 没有参与，也没有启动新的训练、prediction、evaluation 或 downstream projection。
+projection、dataset registry、token cache 和训练接线仍为 pending，现有 PT/SFT/评测继续使用 v1 images。
+
+正式媒体路径：
+
+```text
+/data/jiahao/task/BrickNet/outputs_gt/sft_8view_renders_v2_rowids
+/data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/image_v2_official/SFT
+```
+
+正式 identity/summary/progress/timings 位于：
+
+```text
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_identity.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_summary.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_progress.json
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_timings.jsonl
+```
+
+配置和实现证据为 `BrickNet/configs/bricknet_mm_image_v2_official_render.json`、
+`BrickNet/scripts/render_bricknet_render_8views.py`、
+`BrickNet/scripts/render_bricknet_render_8views_official.sh` 与
+`BrickNet/scripts/generate_bricknet_sft_completion_gate.py`。运行协议是 CYCLES/OPTIX、GPU `0,1`、
+8 views、`512x512`、256 samples、seed `0`；config 默认 `workers_per_gpu=8`，正式 CLI 实际覆盖为
+`16/GPU`。
+
+正式 supervisor evidence 为：
+
+```text
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render.status
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.log
+/data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_sft_render-20260902T194605Z-381805.gpu-peaks.tsv
+/data/jiahao/task/LlamaFactory/tmp_bash/sft_official_verify_20260906.log
+/data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official/sft_completion_gate.json
+```
+
+verify log SHA-256=`9afecbc4717484dd55331b93f496045eff24b2079881e133242b59625d22166a`；completion
+gate SHA-256=`7b68c82e1116aa72d7168c6087858168ca886c57413f841ac3f93b465e325f97`，生成于
+`2026-09-06 02:39 +08:00`。raw/collage logical bytes 为 `119394717747` / `22019373017`；
+selected row IDs SHA-256=`c9d740a06f550b750e1fa6af58d3f874e8ec75be87864c0272cb7483b28a62b8`。
+
+当前数据注册、projection、token cache、LlamaFactory loader 和现有 PT/SFT/评测协议均没有切换，仍使用
+v1 images。`image_v2_official` 目前是已验证但尚未接线的独立媒体输出；不能把它写成 PT-exp2 的新输入或
+新的 downstream checkpoint。严格 verify 已以
+`/data/jiahao/task/LlamaFactory/tmp_bash/sft_official_verify_20260906.log` 中完整的
+`[SFT] verify passed: 67178 rows, exactly 8 views and valid 1024x512 RGB collages` marker 并 exit `0`；
+completion gate 当前为 `PASS`。可执行 gate 重建/复核、迁移、dry-run 和目标端计数命令见
+`LlamaFactory/record.md` 的 2026-09-06 supplement；同步时 gate 文件必须存在并显式传输。
