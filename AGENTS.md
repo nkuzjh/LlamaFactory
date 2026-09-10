@@ -5,7 +5,7 @@ This checkout is the training and prediction repository in a three-repository pr
 1. `/home/jiahao/task/BrickNet/BrickNet-MM Agentic LEGO Planner/README.md`
 2. `/home/jiahao/task/BrickNet/BrickNet-MM Agentic LEGO Planner/Constructor Plan.md`
 3. `/home/jiahao/task/BrickNet/BrickNet-MM Agentic LEGO Planner/Research Agent Operating Guide.md`
-4. The relevant `bricknet-*.md` runbook in this repository.
+4. The relevant topic document linked from the Planner README.
 
 ## Records
 

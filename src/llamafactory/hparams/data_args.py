@@ -19,6 +19,29 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 
+def _is_bricknet_registry_name(name: str) -> bool:
+    """Return whether ``name`` is a local BrickNet dataset registry key.
+
+    Dataset arguments may also contain local paths or names resolved by an
+    online dataset backend.  Only the registry-key shape is versioned here so
+    those other forms retain their existing meaning.
+    """
+    return name.startswith("BrickNet-") and "/" not in name and "\\" not in name and "." not in name
+
+
+def _version_dataset_names(
+    dataset_names: list[str] | None, *, version: Literal["v1", "v2"], dataset_dir: str
+) -> list[str] | None:
+    """Select BrickNet registry keys for the requested dataset version."""
+    if dataset_names is None or version == "v1" or dataset_dir == "ONLINE":
+        return dataset_names
+
+    return [
+        name if name.endswith("_v2") or not _is_bricknet_registry_name(name) else f"{name}_v2"
+        for name in dataset_names
+    ]
+
+
 @dataclass
 class DataArguments:
     r"""Arguments pertaining to what data we are going to input our model for training and evaluation."""
@@ -139,12 +162,21 @@ class DataArguments:
             )
         },
     )
+    bricknet_dataset_version: Literal["v1", "v2"] = field(
+        default="v1",
+        metadata={"help": "BrickNet dataset registry version to select (v1 or v2)."},
+    )
     data_shared_file_system: bool = field(
         default=False,
         metadata={"help": "Whether or not to use a shared file system for the datasets."},
     )
 
     def __post_init__(self):
+        if self.bricknet_dataset_version not in {"v1", "v2"}:
+            raise ValueError(
+                f"bricknet_dataset_version must be either 'v1' or 'v2', got {self.bricknet_dataset_version!r}."
+            )
+
         def split_arg(arg):
             if isinstance(arg, str):
                 return [item.strip() for item in arg.split(",")]
@@ -152,6 +184,16 @@ class DataArguments:
 
         self.dataset = split_arg(self.dataset)
         self.eval_dataset = split_arg(self.eval_dataset)
+
+        self.dataset = _version_dataset_names(
+            self.dataset, version=self.bricknet_dataset_version, dataset_dir=self.dataset_dir
+        )
+        self.eval_dataset = _version_dataset_names(
+            self.eval_dataset, version=self.bricknet_dataset_version, dataset_dir=self.dataset_dir
+        )
+
+        if self.bricknet_dataset_version == "v2" and self.tokenized_path and not self.tokenized_path.endswith("_v2"):
+            self.tokenized_path = f"{self.tokenized_path}_v2"
 
         if self.media_dir is None:
             self.media_dir = self.dataset_dir
