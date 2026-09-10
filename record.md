@@ -602,6 +602,29 @@ conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_
   --action train --run text8m --gpus 1 --execute
 ```
 
+## text8m unconditional generation/evaluation
+
+PT-exp2-text8m 的纯文本 final adapter 使用与 BrickNet 官方 PT 表相同的无条件生成/结构评分协议。以下命令登记为待执行入口；本轮未运行推理或评测。执行前必须人工确认 `ADAPTER_PATH` 指向此前 text8m 250k 训练的 final adapter 保存位置，确认后才可使用 `--adapter-approved`。所有 action 默认是 dry-run；smoke/generate 的真实生成同时需要 `--adapter-approved` 与 `--execute` 两道门。
+
+```bash
+cd /home/jiahao/task/LlamaFactory
+ADAPTER_PATH=/absolute/path/to/reviewed/text8m-250k-final-adapter
+GPU_ID=0
+
+conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_exp2_unconditional.py \
+  --action preflight --adapter-path "$ADAPTER_PATH"
+conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_exp2_unconditional.py \
+  --action smoke --adapter-path "$ADAPTER_PATH" --gpus "$GPU_ID" --adapter-approved --execute
+conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_exp2_unconditional.py \
+  --action generate --adapter-path "$ADAPTER_PATH" --gpus "$GPU_ID" --adapter-approved --execute
+conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_exp2_unconditional.py \
+  --action evaluate --adapter-path "$ADAPTER_PATH" --execute
+conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_exp2_unconditional.py \
+  --action verify --adapter-path "$ADAPTER_PATH" --execute
+```
+
+正式生成先写入 `outputs_pt/qwen35_08b/pt_exp2_text8m_250k_unconditional_v1.building/`，smoke 使用同级 `.smoke/`；`verify` 通过后才原子提升到最终目录 `/home/jiahao/task/BrickNet/outputs_pt/qwen35_08b/pt_exp2_text8m_250k_unconditional_v1/`。最终 artifact 为 `manifest.json`、`run_spec.json`、`out.jsonl`、`scored.jsonl`、`metrics.json`、`metrics.md` 和 `evaluation_manifest.json`。
+
 ## mm e1/e2/e3
 
 MM consolidation 使用 v2-no-meta YAML；e1 从 text8m，e2 从 e1，e3 从 e2 继续。

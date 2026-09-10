@@ -317,6 +317,7 @@ Qwen3.5-2B exp1 是当前 VAL 过拟合实验中表现最好的配置；exp1_1 �
 本节记录固定 a prompt、stop_after_newlines=199、每模型生成 2,048 条样本的 原始BrickNet官方 无条件 PT 复现结果。
 本地 PT-exp0 / PT-exp1 的 MM-PT adapter 训练时接收图像和 inventory 条件，不能使用固定 a prompt 评测；正确协议为 VAL image + empty caption + inventory → path。对应命令只见 [record.md](record.md)。
 本地 PT-exp2 的 stage1 是使用BrickNet-PT text-only训练的adapter，使用unconditional generation的固定 a prompt 评测。
+本表仅用于相同生成/评分协议下的描述性 system comparison；模型家族/规模、语料和训练预算不同，因此不是单因素 ablation，也不支持显著性比较结论。
 
 | Exp | Model / Adapter | Parsable | Clean | Collision | 状态 |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -328,7 +329,7 @@ Qwen3.5-2B exp1 是当前 VAL 过拟合实验中表现最好的配置；exp1_1 �
 | PT-exp0 | Qwen3.5-0.8B + 本地 MM-PT adapter | 0.00% | 0.00% | 0.0000 | 固定 a 输入协议不匹配，结果无效 |
 | PT-exp0 | Qwen3.5-0.8B + 本地 MM-PT adapter | 60.55% | 15.23% | 5.2188 | MM-PT matched protocol，512 VAL 完成；完整指标见 Condition Generation 主表 |
 | PT-exp1 | Qwen3.5-0.8B + 本地 MM-PT adapter | 68.55% | 16.80% | 5.9551 | MM-PT matched protocol，512 VAL 完成；完整指标见 Condition Generation 主表 |
-| PT-exp2 | Qwen3.5-0.8B + 本地 text8m-PT adapter | - | - | - | 等待推理 |
+| PT-exp2-text8m | Qwen3.5-0.8B + 本地 text8m-PT adapter | - | - | - | 任务已实现；等待人工确认 250k final adapter 路径，未启动推理 |
 
 
 ## 待完成实验
