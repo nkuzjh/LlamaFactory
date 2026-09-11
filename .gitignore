@@ -204,3 +204,22 @@ data/bricknet_pt_exp2_mm_rowbal_cont3/*.jsonl
 data/bricknet_pt_exp2_mm_rowbal_cont3/processor_audit_full/*.jsonl
 data/bricknet_pt_exp2_mm_rowbal_cont3.building/
 data/bricknet_pt_exp2_mm_rowbal_cont3.failed-*/
+
+# Official PT render runtime evidence is machine-local.  Keep the supervisor
+# script versioned, but do not commit locks, PIDs, status snapshots, or logs.
+tmp_bash/supervise_official_pt_render.lock
+tmp_bash/supervise_official_pt_render.pid
+tmp_bash/supervise_official_pt_render.status
+tmp_bash/supervise_official_pt_render.selftest.lock
+tmp_bash/supervise_official_pt_render.selftest.pid
+tmp_bash/supervise_official_pt_render.selftest.status
+tmp_bash/supervise_official_pt_render.nohup.log
+tmp_bash/supervise_official_pt_render-*.log
+tmp_bash/supervise_official_pt_render-*.tsv
+tmp_bash/supervise_official_pt_render-*.error
+tmp_bash/pt_official_verify-*.log
+tmp_bash/finalize_official_pt_render.lock
+tmp_bash/wait_and_start_official_pt_render.lock
+tmp_bash/wait_and_start_official_pt_render.pid
+tmp_bash/wait_and_start_official_pt_render.status
+tmp_bash/wait_and_start_official_pt_render.log

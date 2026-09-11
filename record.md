@@ -939,3 +939,130 @@ conda run -n llamafactory --no-capture-output llamafactory-cli train \
   examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_predict.yaml \
   bricknet_dataset_version=v2
 ```
+
+# Official PT media render (`/data` dual-GPU server)
+
+该任务只物化未激活的 PT 官方八视图媒体，不修改 ShareGPT、`dataset_info.json`、训练图片映射或
+token cache，也不创建 `PT_v2`。冻结范围为 135,051 个既有 PT image row；正式拓扑为物理
+CUDA `0,1`、每卡 9 workers，渲染方法为 BrickNet-Render 原仓库的 `CYCLES + OPTIX`。
+
+固定输出与执行证据路径：
+
+```text
+raw views: /data/jiahao/task/BrickNet/outputs_gt/pt_8view_renders_v2_official_rowids/<row_id>/<row_id>_0000.png ... _0007.png
+collages:   /data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/images_v2_official/PT/<row_id>.png
+metadata:   /data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official_pt/
+work/tmp:   /data/jiahao/bricknet_render_work/images_v2_official_pt/
+run logs:   /data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_pt_render-<run_id>.*
+```
+
+## 1. 静态准备与只读预检
+
+下列命令不会启动 pilot 或正式渲染：
+
+```bash
+cd /data/jiahao/task/BrickNet
+
+python -m json.tool configs/bricknet_mm_image_v2_official_pt_render.json >/dev/null
+sha256sum \
+  configs/bricknet_mm_image_v2_official_pt_render.json \
+  scripts/render_bricknet_render_8views_official_pt.sh \
+  scripts/render_bricknet_render_8views.py \
+  data/bricknet_datasets/pt.npz
+
+./scripts/render_bricknet_render_8views_official_pt.sh \
+  --preflight-only --workers-per-gpu 9
+
+cd /data/jiahao/task/LlamaFactory
+bash -n tmp_bash/supervise_official_pt_render.sh
+./tmp_bash/supervise_official_pt_render.sh --self-test
+cat tmp_bash/supervise_official_pt_render.selftest.status
+```
+
+预检应报告 135,051 selected rows、253,623 graphs，并保持以下正式输入 SHA-256：
+
+```text
+PT render config:       61ec07b40077e842df8c4b768ebee5ae2b391fb35d4f0ff23e36be982ca7918a
+PT launcher:            770a355731944cd711644beb932cc9f4143ccd292e32b6bb1d7dfd85c9c740ce
+render driver:          0d36ef76c802f5ce76f4c0c839800cd7f1c3cd644074c30e257ebddae6f205ec
+PT supervisor:          9584b3d84c096c1bf9e2c007e35fd8c86d557e152b9e396cee8622363e1d4996
+pt.npz:                a3c9ebe27fa49c97a3dce2c76152522aad0bf1b9c6c1859ee639e23935597ab6
+selected ordered rows: 46f474ef26c9e1d6e44d38741dda8a83a274fde00fbee5c1672530aee1cc18ad
+PT ShareGPT:           9daa4703ae8e56afec862ce4fbe6cf9344422542b614c6327fcc09690eb4c055
+```
+
+## 2. GPU 检查与首次启动
+
+先检查两张物理卡。历史双卡 9-worker pilot 的最大显存增量为 44,007 MiB；supervisor 因而要求
+首次 pilot 前每卡至少有 52,200 MiB 空闲（实测增量加 8 GiB 余量）。若其它任务使任一卡低于该值，
+不启动；不得杀死其他用户进程，也不得把正式 worker 数降到 8 或更低。supervisor 会先做 32-row
+双卡 pilot，并根据本次实测峰值再次 fail closed。
+
+```bash
+nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu \
+  --format=csv,noheader,nounits
+nvidia-smi --query-compute-apps=gpu_uuid,pid,used_memory \
+  --format=csv,noheader,nounits
+```
+
+两张卡具备足够余量后执行：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+nohup ./tmp_bash/supervise_official_pt_render.sh \
+  > tmp_bash/supervise_official_pt_render.nohup.log 2>&1 &
+printf 'supervisor shell pid=%s\n' "$!"
+```
+
+## 3. 增量监控与断点恢复
+
+状态文件是当前阶段的权威入口；run-specific log、GPU TSV 和 timing JSONL 提供增量证据：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+sed -n '1,200p' tmp_bash/supervise_official_pt_render.status
+PT_RENDER_LOG="$(awk -F= '$1=="supervisor_log" {sub(/^[^=]*=/, ""); print; exit}' \
+  tmp_bash/supervise_official_pt_render.status)"
+tail -n 100 "$PT_RENDER_LOG"
+
+cd /data/jiahao/task/BrickNet
+jq '{split,rows_requested,stats,timing,workers_per_gpu,gpu_ids}' \
+  outputs_gt/.bricknet_render_v2_official_pt/pt_progress.json
+```
+
+遇到 supervisor 标记的可恢复 GPU/磁盘失败时，保留所有输出。确认资源恢复后复用同一 pilot 并继续；
+`skip_existing=true` 会跳过 raw+collage 均完整的 row：
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+
+PT_PILOT_ROOT="$(awk -F= '$1=="pilot_root" {sub(/^[^=]*=/, ""); print; exit}' \
+  tmp_bash/supervise_official_pt_render.status)"
+test -d "$PT_PILOT_ROOT"
+
+BRICKNET_OFFICIAL_PT_PILOT_ROOT="$PT_PILOT_ROOT" \
+nohup ./tmp_bash/supervise_official_pt_render.sh \
+  > tmp_bash/supervise_official_pt_render.nohup.log 2>&1 &
+printf 'resumed supervisor shell pid=%s\n' "$!"
+```
+
+## 4. 全量 strict verify 与 completion gate
+
+只有 status 为 `stage=RENDER_COMPLETE_PENDING_VERIFY` 且 `result=OK` 才运行收尾。第一条只检查前置
+条件且不写 gate；第二条完整解码 1,080,408 张 raw PNG 和 135,051 张 collage，并原子发布 gate：
+
+```bash
+cd /data/jiahao/task/BrickNet
+
+./scripts/finalize_bricknet_render_8views_official_pt.sh --check-only
+./scripts/finalize_bricknet_render_8views_official_pt.sh
+
+jq '{status,scope,artifacts,stats,strict_verify,downstream_guard,downstream}' \
+  outputs_gt/.bricknet_render_v2_official_pt/pt_completion_gate.json
+```
+
+验收终点是 gate 的 `status=PASS`、`failed=0`、raw=1,080,408、collage=135,051，且
+`dataset_mapping_modified=false`、`new_dataset_version_created=false`。在另行批准 projection 之前，
+不得更改任何数据集图片路径。
