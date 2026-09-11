@@ -6,6 +6,7 @@
 # trust_remote_code: true
 # flash_attn: auto
 model_name_or_path: Qwen/Qwen3.5-0.8B
+model_revision: 2fc06364715b967f1860aea9cf38778875588b17
 trust_remote_code: true
 flash_attn: fa2
 enable_liger_kernel: true
@@ -50,7 +51,7 @@ include_num_input_tokens_seen: true
 ### train
 per_device_train_batch_size: 16 #16
 per_device_eval_batch_size: 1 #16
-# Dual-GPU default; launcher overrides this to 8 for a single GPU.
+# Dual-GPU default; launcher overrides this to 2 for a single GPU so global batch remains 32.
 gradient_accumulation_steps: 1 #8 #1
 learning_rate: 5.0e-5 #1.4e-4 #5.0e-5
 max_steps: 250000 #30000 #250000
