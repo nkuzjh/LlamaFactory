@@ -224,11 +224,15 @@ GRPO-exp0 的训练前 reference reward 为 1.0；正式结果由 artifact gate 
 
 ## Condition Generation 结果
 
-BrickNet-MM 和 BrickNet-MM-RL 均在同一组 512 条 BrickNet-MM-VAL 上评测。除新增的 Exp 列外，Train Data 至 VQAScore 八列沿用 BrickNet condition generation 的展示方式，其余指标追加在最右侧。论文公布的基线统一标记为 BrickNet-paper。
+论文条件生成的严格复现契约见 [BrickNet Paper Reproduction Protocol](../BrickNet/BrickNet-MM%20Agentic%20LEGO%20Planner/BrickNet%20Paper%20Reproduction%20Protocol.md)（`planned`）。该协议要求五规模 VAL512、每题最多十次尝试且仅完整 parse 失败时重采样，并保留逐 attempt 原始 token 证据。下表是既有生成、渲染与评测记录；不能据此认定新重采样、token 留存、碰撞内核和指标口径已通过验收，也不能把跨协议差异解释为单纯模型规模效应。
+
+BrickNet-MM 和 BrickNet-MM-RL 均在同一组 512 条 BrickNet-MM-VAL 上评测。除新增的 Exp 列外，Train Data 至 VQAScore 八列沿用 BrickNet condition generation 的展示方式，其余指标追加在最右侧。本节 `BrickNet-paper` 是官方发布权重的项目内复现记录标签，不表示直接抄录论文 Table 3 数值；外部论文数字须另标 reference。
 
 ### 官方 BrickNet-Render 结果
 
 以下表格只记录采用官方 BrickNet-Render CLI（bricknet-render ... --views 8）重新渲染后计算的指标。GT 上限使用已全量验证的 512×8 个官方 raw views；其非渲染字段记为 -，五个 BrickNet-paper SFT 模型均已完成全量验证。
+
+这里的历史完成指既有生成结果及其可渲染子集的评测完成：五模型的 Connectivity 数均低于 512，不代表按新协议重采样后得到了完整 512 个接受结构。表内图文原分数及 Adj. 继续保留原覆盖口径，不与新协议完整 512 均值混写。
 
 | Exp | Train Data | Model | Training / Sampling | Connectivity (Num, %) | Collision | PE | SigLIP 2 | VQAScore | Clean (Num, %) | BLEU-4 | ROUGE-1 | ROUGE-2 | ROUGE-L | PE Adj. | SigLIP 2 Adj. | VQA Adj. | Parse Prefix | Inventory F1 | Length Score | Collision Prefix | Pose Match | Dense Reward | Strict Success |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -314,22 +318,48 @@ Qwen3.5-2B exp1 是当前 VAL 过拟合实验中表现最好的配置；exp1_1 �
 
 ## Unconditional Generation 结果
 
-本节记录固定 a prompt、stop_after_newlines=199、每模型生成 2,048 条样本的 原始BrickNet官方 无条件 PT 复现结果。
-本地 PT-exp0 / PT-exp1 的 MM-PT adapter 训练时接收图像和 inventory 条件，不能使用固定 a prompt 评测；正确协议为 VAL image + empty caption + inventory → path。对应命令只见 [record.md](record.md)。
-本地 PT-exp2 的 stage1 是使用BrickNet-PT text-only训练的adapter，使用unconditional generation的固定 a prompt 评测。
-本表仅用于相同生成/评分协议下的描述性 system comparison；模型家族/规模、语料和训练预算不同，因此不是单因素 ablation，也不支持显著性比较结论。
+本节只记录固定 `a` prompt、`stop_after_newlines=199` 的 NS（nucleus sampling）无条件 path 生成。NS-only；AS、Pose 及其对齐指标不在本轮范围。旧 PT-exp0 / PT-exp1 的 MM-PT adapter 训练时接收图像和 inventory，不能使用固定 `a` prompt，相关结果仍见 Condition Generation 主表；对应命令只见 [record.md](record.md)。
+
+五规模（0.6/1.7/4/8/14B）各 65,536 条的正式 Graph/NS 协议见 [BrickNet Paper Reproduction Protocol](../BrickNet/BrickNet-MM%20Agentic%20LEGO%20Planner/BrickNet%20Paper%20Reproduction%20Protocol.md)（`planned`）。下文 2,048 条历史结果与四个未运行的旧 launcher arm 均不是该五规模正式结果；N、采样及逐 attempt 证据和评测口径未统一前，只能作有明确 provenance 的描述性对照，不可直接作论文严格复现结论。
+
+### 2048：现有 NS 代码复现（历史值与待运行 arm）
+
+这组是现有 BrickNet NS 代码的 `N=2,048` 记录。旧 2048 结果记录只保存一个 combined first-failure 均值（解析失败或碰撞位置的最小值），没有独立的 Connectivity mean；这个历史 combined 数值与新 evaluator 的 Collision mean 同口径，因此在表中同时明确为 legacy Collision，而不是把它当成另一个独立指标。`Parsable/Clean` 仅作为辅助值保留；8B/14B 目前统一标为 `ready`、未运行，不把目录或曾经的空启动当作结果。
+
+| Exp | Model / Adapter | N | Sampler | Parsable / Clean（辅助） | Connectivity mean | Collision mean（= legacy combined first-failure） | status / provenance |
+| --- | --- | ---: | --- | ---: | ---: | ---: | --- |
+| BrickNet-PT（legacy） | Qwen3-0.6B + BrickNet-0.6B-PT | 2,048 | NS（现有代码） | 85.89% / 1.81% | -（未保存） | 15.1333 | historical；现有 2048 NS 复现值 |
+| BrickNet-PT（legacy） | Qwen3-1.7B + BrickNet-1.7B-PT | 2,048 | NS（现有代码） | 89.40% / 2.10% | -（未保存） | 16.2275 | historical；现有 2048 NS 复现值 |
+| BrickNet-PT（legacy） | Qwen3-4B + BrickNet-4B-PT | 2,048 | NS（现有代码） | 92.43% / 1.32% | -（未保存） | 16.1934 | historical；现有 2048 NS 复现值 |
+| `bricknet-pt-qwen3-8b-uncond-ns-n2048-v1` | Qwen3-8B + BrickNet-8B-PT | 2,048 | NS（现有代码） | - / - | - | - | ready；未运行，no output artifact |
+| `bricknet-pt-qwen3-14b-uncond-ns-n2048-v1` | Qwen3-14B + BrickNet-14B-PT | 2,048 | NS（现有代码） | - / - | - | - | ready；未运行，no output artifact |
+
+### 65536：Paper Graph/NS 复现（既有两项待运行 arm）
+
+这是既有 launcher 固定的两个 `N=65,536` Paper Graph/NS arm。它们与上面的两个 2048 arm 合计为此前登记的四个固定 NS 实验；命令、资源门和 artifact 路径只见 [record.md](record.md)。此前已完成该 launcher 的实现和文档登记，尚未启动生成或评测；本轮只更新新五规模方案的文档，不代表已实现新版协议。
+
+| Exp | Model / Adapter | N | Sampler | Parsable / Clean（辅助） | Connectivity mean | Collision mean（combined alias） | status / provenance |
+| --- | --- | ---: | --- | ---: | ---: | ---: | --- |
+| `bricknet-pt-qwen3-06b-uncond-paper-ns-n65536-v1` | Qwen3-0.6B + BrickNet-0.6B-PT | 65,536 | Paper Graph/NS（new launcher） | - | - | - | ready；未运行，formal artifact absent |
+| `bricknet-pt-qwen3-17b-uncond-paper-ns-n65536-v1` | Qwen3-1.7B + BrickNet-1.7B-PT | 65,536 | Paper Graph/NS（new launcher） | - | - | - | ready；未运行，formal artifact absent |
+
+论文 NS 数字只作外部 reference，不能填入本地复现结果，也不能当作已验证 artifact：
+
+| Reference | Model | N | Sampler | Parsable / Clean（辅助） | Connectivity mean | Collision mean | status / provenance |
+| --- | --- | ---: | --- | ---: | ---: | ---: | --- |
+| BrickNet-paper | Qwen3-0.6B | 65,536 | NS | - / -（未报告） | 94.1（reference） | 16.0（reference） | reference only；非本地结果 |
+| BrickNet-paper | Qwen3-1.7B | 65,536 | NS | - / -（未报告） | 95.1（reference） | 16.6（reference） | reference only；非本地结果 |
+
+本节 `Connectivity mean` 指新 evaluator 的 `mean_actions_before_connectivity_failure`，即成功 prefix 的平均步数；它不是这里的 Parsable 成功率。`Collision mean` 指 `mean_actions_before_collision_failure`，按 evaluator 定义与 `mean_actions_before_first_failure` 完全相同（均为 connectivity failure 与 collision indices 的最小值），因此 Collision 与 combined 是 alias，不是三个独立指标。旧 2048 缺少的只是独立 Connectivity；论文 reference 的 94.1/95.1 和 16.0/16.6 分别只对应 Connectivity mean 与 Collision mean。所有表格均为描述性 system comparison，不支持单因素或显著性结论。
+
+原表中不属于本轮四个 BrickNet-PT arm 的本地协议记录继续保留如下，避免把 MM 条件协议与固定 `a` 的 NS 结果混为一谈：
 
 | Exp | Model / Adapter | Parsable | Clean | Collision | 状态 |
 | --- | --- | ---: | ---: | ---: | --- |
-| BrickNet-PT | Qwen3-0.6B + BrickNet-0.6B-PT | 85.89% | 1.81% | 15.1333 | 完成 |
-| BrickNet-PT | Qwen3-1.7B + BrickNet-1.7B-PT | 89.40% | 2.10% | 16.2275 | 完成 |
-| BrickNet-PT | Qwen3-4B + BrickNet-4B-PT | 92.43% | 1.32% | 16.1934 | 完成 |
-| BrickNet-PT | Qwen3-8B + BrickNet-8B-PT | - | - | - | 启动过但无输出 |
-| BrickNet-PT | Qwen3-14B + BrickNet-14B-PT | - | - | - | 启动过但无输出 |
-| PT-exp0 | Qwen3.5-0.8B + 本地 MM-PT adapter | 0.00% | 0.00% | 0.0000 | 固定 a 输入协议不匹配，结果无效 |
+| PT-exp0 | Qwen3.5-0.8B + 本地 MM-PT adapter | 0.00% | 0.00% | 0.0000 | 固定 `a` 输入协议不匹配，结果无效 |
 | PT-exp0 | Qwen3.5-0.8B + 本地 MM-PT adapter | 60.55% | 15.23% | 5.2188 | MM-PT matched protocol，512 VAL 完成；完整指标见 Condition Generation 主表 |
 | PT-exp1 | Qwen3.5-0.8B + 本地 MM-PT adapter | 68.55% | 16.80% | 5.9551 | MM-PT matched protocol，512 VAL 完成；完整指标见 Condition Generation 主表 |
-| PT-exp2-text8m | Qwen3.5-0.8B + 本地 text8m-PT adapter | - | - | - | 任务已实现；等待人工确认 250k final adapter 路径，未启动推理 |
+| PT-exp2-text8m | Qwen3.5-0.8B + 本地 text8m-PT adapter | - | - | - | 任务已实现；等待 fresh 250k final adapter 完成并验收，未启动推理 |
 
 
 ## 待完成实验

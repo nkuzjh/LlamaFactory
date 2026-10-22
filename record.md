@@ -7,6 +7,114 @@
 
 # PT experiments
 
+## BrickNet PT official media render（已验证完成）
+
+本节登记 PT 官方媒体层的完成证据和历史运行入口。正式 run
+`pt-elastic-cuda1-20260914T142134Z-003` 已完成 135,051/135,051 rows：rendered 58,101、
+skipped 76,950、failed 0；135,051 个 raw row 目录中的 1,080,408 张 PNG 和 135,051 张 collage 已
+通过 strict verify，pass marker 计数为 1。旧双卡 run
+`pt-elastic-20260913T200555Z-633995` 已于 2026-09-14 22:05+08 安全停止，迁移前为
+`76900/135051`（rendered `13601`、skipped `63299`、failed `0`）。
+
+completion gate 于 `2026-09-19T13:49:08Z` 生成且为 `PASS`：
+
+```text
+path:            /data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official_pt/pt_completion_gate.json
+gate file SHA:   9a0796acf72ea3c183bc7850dceaf3e6fb90152b56dde46ab5dc1432f7f88f84
+gate self SHA:   8441671258afa2027cd996b521456ddcfd38c44cc19b5b321c3c4ce2fa41cd60
+verify log SHA:  bdf3e5d85a8a430db7e52d695c5719d9ec7cca73d295bef8fff1b54dee293c73
+```
+
+`downstream_guard=PASS`，5 个受保护文件的 hash 均已验证；
+`projection_activated=false`、`dataset_mapping_modified=false`、
+`new_dataset_version_created=false`。因此当前只完成独立媒体层，尚未接入训练。
+
+已验收运行的冻结入口为：
+
+- 配置：`/data/jiahao/task/BrickNet/configs/bricknet_mm_image_v2_official_pt_elastic_runtime_cuda1.json`
+  （SHA-256 `ac4dca232592b4e2d99d83f4218e691cc1f2873084fba7a09b2c0f9d020c6cb0`）。
+- Identity 记录必须区分 adoption 与当前文件：run003 的 adoption-commit event artifact SHA-256 为
+  `35dea999f3518dd31b1ae659105064b9cf8ccf7f40e645b1b6861c5a28f2d594`；启动后的 `ensure_identity`
+  已规范化重写 `pt_identity.json`，当前 normalized identity raw SHA-256 为
+  `7f84ed4e9ed807cb6dd985ddd6749b6dc0dd320dda70da0b07f7ff13a0e2e26d`，`identity_mismatch_fields` 已移除。
+- 拓扑：物理 CUDA `1` 映射为进程逻辑 `cuda:0`；物理 CUDA `0` 不使用；identity cap `7`，运行时
+  active admission 动态为 `1–7`。
+- 运行语义：官方 `CYCLES + OPTIX`；保留 idle balloon、heavy/extreme row 保护（阈值 `90/100`、
+  hold expiry `900s`）、CUDA/OptiX 显存压力最多一次重试、磁盘低水位暂停/恢复、原子 row 输出和
+  `skip_existing` 断点恢复。
+- 进程边界：supervisor/governor 只归因、停止自己启动且身份校验通过的进程组及 balloon；不得向其他
+  用户进程发信号。PT 媒体仍是未激活层，图片路径映射保持不变。
+
+以下为历史正式启动记录；任务已完成，不得重复启动该 `run_id`：
+
+```bash
+cd /data/jiahao/task/BrickNet
+
+PT_ELASTIC_RUN_ID="pt-elastic-cuda1-20260914T142134Z-003"
+PT_ELASTIC_LOG="/data/jiahao/task/LlamaFactory/tmp_bash/pt_official_elastic_${PT_ELASTIC_RUN_ID}.nohup.log"
+nohup setsid /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/supervise_bricknet_pt_elastic.py \
+  --run-id "$PT_ELASTIC_RUN_ID" \
+  --config configs/bricknet_mm_image_v2_official_pt_elastic_runtime_cuda1.json \
+  >"$PT_ELASTIC_LOG" 2>&1 </dev/null &
+printf 'run_id=%s supervisor_pid=%s log=%s\n' "$PT_ELASTIC_RUN_ID" "$!" "$PT_ELASTIC_LOG"
+```
+
+历史运行的增量监控以 `current_run.json` 为权威入口；完成结论以 strict verify 和 gate 为准：
+
+```bash
+cd /data/jiahao/task/BrickNet
+PT_ELASTIC_BASE=outputs_gt/.bricknet_render_v2_official_pt/elastic_runtime
+PT_ELASTIC_RUN_ID="$(jq -er '.run_id' "$PT_ELASTIC_BASE/current_run.json")"
+PT_ELASTIC_RUNTIME="$PT_ELASTIC_BASE/$PT_ELASTIC_RUN_ID"
+
+jq '{run_id,state,result,stage,owned_processes,updated_utc}' \
+  "$PT_ELASTIC_RUNTIME/supervisor.status.json"
+jq '{state,control_epoch,measurements_by_gpu,updated_utc}' \
+  "$PT_ELASTIC_RUNTIME/governor.status.json"
+jq '{accepted_epoch,desired_active_by_gpu,inflight_by_gpu,terminal,updated_utc}' \
+  "$PT_ELASTIC_RUNTIME/pt_runtime_control.ack.json"
+jq '{split,rows_requested,stats,timing,workers_per_gpu,gpu_ids}' \
+  outputs_gt/.bricknet_render_v2_official_pt/pt_progress.json
+tail -n 100 "$PT_ELASTIC_RUNTIME/logs/renderer.log"
+```
+
+受控停止必须只对 `current_run.json` 中、且经 `ps` 核对命令行包含同一 run ID 的 supervisor PID 发送
+`SIGTERM`；不要直接终止 renderer、governor 或 balloon：
+
+```bash
+cd /data/jiahao/task/BrickNet
+PT_ELASTIC_BASE=outputs_gt/.bricknet_render_v2_official_pt/elastic_runtime
+PT_ELASTIC_RUN_ID="$(jq -er '.run_id' "$PT_ELASTIC_BASE/current_run.json")"
+PT_ELASTIC_RUNTIME="$PT_ELASTIC_BASE/$PT_ELASTIC_RUN_ID"
+SUPERVISOR_PID="$(jq -er '.pid' "$PT_ELASTIC_BASE/current_run.json")"
+ps -p "$SUPERVISOR_PID" -o pid=,args=
+# 仅在上一行确认是 supervise_bricknet_pt_elastic.py 且包含 "$PT_ELASTIC_RUN_ID" 后执行：
+kill -TERM "$SUPERVISOR_PID"
+while kill -0 "$SUPERVISOR_PID" 2>/dev/null; do sleep 2; done
+jq '{run_id,state,result,stage,updated_utc}' "$PT_ELASTIC_RUNTIME/supervisor.status.json"
+```
+
+以下断点续跑命令仅用于未来确认产物损坏、需要重新物化且重新批准之后；不得复用旧 run ID：
+
+```bash
+cd /data/jiahao/task/BrickNet
+PT_ELASTIC_RUN_ID="pt-elastic-cuda1-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+PT_ELASTIC_LOG="/data/jiahao/task/LlamaFactory/tmp_bash/pt_official_elastic_${PT_ELASTIC_RUN_ID}.nohup.log"
+nohup setsid /home/jiahao/miniconda3/envs/bricknet/bin/python \
+  scripts/supervise_bricknet_pt_elastic.py \
+  --run-id "$PT_ELASTIC_RUN_ID" \
+  --config configs/bricknet_mm_image_v2_official_pt_elastic_runtime_cuda1.json \
+  >"$PT_ELASTIC_LOG" 2>&1 </dev/null &
+printf 'run_id=%s supervisor_pid=%s log=%s\n' "$PT_ELASTIC_RUN_ID" "$!" "$PT_ELASTIC_LOG"
+```
+
+双卡 `pt-elastic-20260913T200555Z-633995` 与
+`configs/bricknet_mm_image_v2_official_pt_elastic_runtime.json` 仅为迁移历史；旧双卡入口不得重新启动，
+也不得把迁移前的局部计数写成当前全量结果。本次 renderer 已正常进入
+`RENDER_COMPLETE_PENDING_VERIFY`/`result=OK`，随后 strict verify 与 completion gate 均为 `PASS`；
+该结论不激活训练图片路径，也不创建数据集版本。
+
 ## exp0
 
 Qwen3.5-0.8B；PT-exp0 LoRA 版本为
@@ -87,6 +195,8 @@ cd /home/jiahao/task/LlamaFactory
 
 # BrickNet-Paper SFT experiments
 
+论文条件生成的严格复现契约见 [BrickNet Paper Reproduction Protocol](../BrickNet/BrickNet-MM%20Agentic%20LEGO%20Planner/BrickNet%20Paper%20Reproduction%20Protocol.md)（`planned`）：五规模 VAL512、每题首次生成加最多九次仅因完整 parse 失败触发的重采样，共最多十次尝试。以下是既有五模型官方渲染及评测入口，不是上述重采样协议的实现或执行记录；原始 prompt/generated token IDs 的逐 attempt 保存也尚未由当前生成入口满足。
+
 GT 使用已完成并验证的 `outputs_gt/val_8view_renders_v2_official_rowids`；以下入口仅对五个 paper SFT 模型执行官方 BrickNet-Render 八视图渲染，并对 GT/五模型统一计算指标。任一指标在最低批量/低显存配置下仍失败时保留其他指标，并让对应单元为空。
 
 ```bash
@@ -145,6 +255,21 @@ done
 
 cd /home/jiahao/task/LlamaFactory
 ```
+
+# Official data v2 selection
+
+官方渲染完成，并依次通过 media completion、projection、loader/token gate 后，训练或 prediction 才可按命令显式切换到 data v2；v2 的构造、渲染和各 gate 只记录在 [BRICKNET_RENDER_IMAGES_V2_zh.md](../BrickNet/data_preprocess/BRICKNET_RENDER_IMAGES_V2_zh.md) 与 [BRICKNET_MM_IMAGES_V2_PROJECTION_zh.md](../BrickNet/data_preprocess/BRICKNET_MM_IMAGES_V2_PROJECTION_zh.md)。运行时默认仍为 v1。
+
+只有存在对应 `_v2` registry entry 且该 entry 的 gate 已通过的 SFT、VAL 或派生数据，才允许选择 data v2。PT 没有 official data v2；`PT-exp2` 的 `v2-no-meta` 等命名表示内部实验/派生投影，不等于 official data v2，也不能仅凭名称切换。
+
+后续 record 中的直接命令按以下规则设置参数：
+
+| 命令形式 | v2 选择参数 | 必须同时满足 |
+| --- | --- | --- |
+| YAML positional config | `bricknet_dataset_version=v2` | 在 config positional argument 后追加 `bricknet_dataset_version=v2 output_dir=..._data_v2`；prediction 同时追加/覆盖 `adapter_name_or_path=<v2-train-artifact>` |
+| 纯 flag CLI | `--bricknet_dataset_version v2` | 添加 `--bricknet_dataset_version v2`，把现有 `--output_dir` 改为独立的 `..._data_v2`；prediction 同时修改 `--adapter_name_or_path <v2-train-artifact>` |
+
+非空 `tokenized_path` 会由代码按 v2 自动隔离为 `_v2` 路径；不得复用 v1 tokenized cache，也不要手工把 dataset 名改成 `_v2`。当前通用 `python scripts/launch_*.py` gate launcher 不会透传 `bricknet_dataset_version`，不能在其命令末尾直接追加该参数；只有 launcher 明确支持该参数，并同时校验 v2 data、cache、output 的 identity 后才可使用，禁止绕过 launcher gate。
 
 # SFT experiments
 
@@ -594,17 +719,28 @@ conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_sta
 
 ## text8m
 
-Qwen3.5-0.8B text-only PT 250k；使用现有 gate-protected launcher。
+PT-exp2 text8m 当前登记为同一冻结协议的 fresh rerun。此前本机的 final/checkpoints 不可作为 resume；当前状态为 `ready`、尚未启动，fresh run 要求预期 output 目录不存在。使用现有 gate-protected launcher。
+
+固定实验身份与配置：Qwen3.5-0.8B，固定 revision `2fc06364715b967f1860aea9cf38778875588b17`；冻结的 7,698,261 条 canonical paths；持久化 with-length tokenized cache；non-packing、`cutoff_len=6401`、250k steps；双卡每卡 batch size 16、GA1、global batch size 32。
 
 ```bash
 cd /home/jiahao/task/LlamaFactory
+
+# launcher 不会把 GPU 占用自动判为 blocker；正式启动前确认两卡没有其他计算进程。
+nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader
+
+# dry-run
 conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_exp2.py \
-  --action train --run text8m --gpus 1 --execute
+  --action train --run text8m --gpus 0 1
+
+# 正式 fresh rerun：仅在两卡无其他计算进程时执行。
+conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_exp2.py \
+  --action train --run text8m --gpus 0 1 --execute
 ```
 
 ## text8m unconditional generation/evaluation
 
-PT-exp2-text8m 的纯文本 final adapter 使用与 BrickNet 官方 PT 表相同的无条件生成/结构评分协议。以下命令登记为待执行入口；本轮未运行推理或评测。执行前必须人工确认 `ADAPTER_PATH` 指向此前 text8m 250k 训练的 final adapter 保存位置，确认后才可使用 `--adapter-approved`。所有 action 默认是 dry-run；smoke/generate 的真实生成同时需要 `--adapter-approved` 与 `--execute` 两道门。
+PT-exp2-text8m 的纯文本 final adapter 使用与 BrickNet 官方 PT 表相同的无条件生成/结构评分协议。以下命令登记为待执行入口；本轮未运行推理或评测。执行前必须人工确认 `ADAPTER_PATH` 指向本次 fresh rerun 完成且独立验收后的 final adapter 保存位置；此前 final adapter 的绑定不可作为当前产物。确认后才可使用 `--adapter-approved`。所有 action 默认是 dry-run；smoke/generate 的真实生成同时需要 `--adapter-approved` 与 `--execute` 两道门。
 
 ```bash
 cd /home/jiahao/task/LlamaFactory
@@ -624,6 +760,58 @@ conda run -n llamafactory --no-capture-output python scripts/launch_bricknet_pt_
 ```
 
 正式生成先写入 `outputs_pt/qwen35_08b/pt_exp2_text8m_250k_unconditional_v1.building/`，smoke 使用同级 `.smoke/`；`verify` 通过后才原子提升到最终目录 `/home/jiahao/task/BrickNet/outputs_pt/qwen35_08b/pt_exp2_text8m_250k_unconditional_v1/`。最终 artifact 为 `manifest.json`、`run_spec.json`、`out.jsonl`、`scored.jsonl`、`metrics.json`、`metrics.md` 和 `evaluation_manifest.json`。
+
+## BrickNet PT unconditional NS（四个固定 arm）
+
+NS 指 nucleus sampling。严格论文复现的五规模（0.6/1.7/4/8/14B）Graph/NS、每规模 65,536 条正式样本及原始 token 证据契约见 [BrickNet Paper Reproduction Protocol](../BrickNet/BrickNet-MM%20Agentic%20LEGO%20Planner/BrickNet%20Paper%20Reproduction%20Protocol.md)（`planned`）；本节四个固定 ID、N 和命令只代表既有 launcher 范围，不构成新五规模协议已经实现或运行的证据。
+
+本节是四个 BrickNet PT 无条件 NS 实验的当前 launcher 入口，实际接口为 `scripts/launch_bricknet_paper_pt_unconditional.py`：0.6B/1.7B 使用 Paper Graph/NS 的 65,536 样本协议，8B/14B 使用现有 NS 代码的 2,048 样本协议。此前已完成该 launcher 和文档登记，四个 arm 均未运行；没有生成、评测或 verify 结果可回填。本轮仅修订新版方案文档，不授权执行下列命令；AS/Pose 不在本轮范围。
+
+固定实验 ID、正式样本数和输出 slug 如下；不得自行增加 sweep arm 或修改 N：
+
+| experiment ID | Model / Adapter | N | output slug |
+| --- | --- | ---: | --- |
+| `bricknet-pt-qwen3-06b-uncond-paper-ns-n65536-v1` | Qwen3-0.6B + BrickNet-0.6B-PT | 65,536 | `bricknet-pt-qwen3-06b-uncond-paper-ns-n65536-v1` |
+| `bricknet-pt-qwen3-17b-uncond-paper-ns-n65536-v1` | Qwen3-1.7B + BrickNet-1.7B-PT | 65,536 | `bricknet-pt-qwen3-17b-uncond-paper-ns-n65536-v1` |
+| `bricknet-pt-qwen3-8b-uncond-ns-n2048-v1` | Qwen3-8B + BrickNet-8B-PT | 2,048 | `bricknet-pt-qwen3-8b-uncond-ns-n2048-v1` |
+| `bricknet-pt-qwen3-14b-uncond-ns-n2048-v1` | Qwen3-14B + BrickNet-14B-PT | 2,048 | `bricknet-pt-qwen3-14b-uncond-ns-n2048-v1` |
+
+所有 action 默认是只读 dry-run。`preflight` 不需要 `--execute`；`smoke`、`pilot`、`generate` 的真实执行必须同时通过 `--artifacts-approved` 和 `--execute`；`evaluate`、`verify` 必须带 `--execute`，且只能在前一阶段的正式 staged artifact 通过 gate 后执行。GPU 选择器是物理 CUDA ID，必须先确认不抢占当前 PT render；launcher 不会替用户判断其它进程是否占用 GPU。
+
+```bash
+cd /data/jiahao/task/LlamaFactory
+PAPER_NS_GPU_IDS=0  # 仅示例；替换为当前空闲的物理 CUDA ID（可写成 0,1）
+PAPER_NS_LAUNCHER=scripts/launch_bricknet_paper_pt_unconditional.py
+
+# 四个固定 arm 的只读 preflight；代码验收通过后先执行到这里。
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment bricknet-pt-qwen3-06b-uncond-paper-ns-n65536-v1 --action preflight --gpus "$PAPER_NS_GPU_IDS"
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment bricknet-pt-qwen3-17b-uncond-paper-ns-n65536-v1 --action preflight --gpus "$PAPER_NS_GPU_IDS"
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment bricknet-pt-qwen3-8b-uncond-ns-n2048-v1 --action preflight --gpus "$PAPER_NS_GPU_IDS"
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment bricknet-pt-qwen3-14b-uncond-ns-n2048-v1 --action preflight --gpus "$PAPER_NS_GPU_IDS"
+
+# 通过人工资源/产物审批后，对一个已通过 preflight 的 ID 按顺序执行；
+# 将 EXPERIMENT 分别设为上表四个 ID，不能跨 ID 复用 staged artifact。
+EXPERIMENT=bricknet-pt-qwen3-06b-uncond-paper-ns-n65536-v1
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment "$EXPERIMENT" --action smoke --gpus "$PAPER_NS_GPU_IDS" \
+  --artifacts-approved --execute
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment "$EXPERIMENT" --action pilot --gpus "$PAPER_NS_GPU_IDS" \
+  --artifacts-approved --execute
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment "$EXPERIMENT" --action generate --gpus "$PAPER_NS_GPU_IDS" \
+  --artifacts-approved --execute
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment "$EXPERIMENT" --action evaluate --gpus "$PAPER_NS_GPU_IDS" --execute
+conda run -n llamafactory --no-capture-output python "$PAPER_NS_LAUNCHER" \
+  --experiment "$EXPERIMENT" --action verify --gpus "$PAPER_NS_GPU_IDS" --execute
+```
+
+正式输出根目录为 `/data/jiahao/task/BrickNet/outputs_pt/paper_pt_unconditional/`。每个 slug 的正式生成先进入 `<slug>.building/`，诊断产物进入同级 `<slug>.smoke/` 和 `<slug>.pilot/`；staging/final bundle 包含 `run_spec.json`、`out.jsonl`、`scored.jsonl`、`metrics.json`、`metrics.md`、`evaluation_manifest.json`，`verify` 通过后才把正式 `.building/` 原子提升为 `<slug>/`，并新增 `manifest.json`。当前四个目录均不应被视为已存在或已完成的结果。
 
 ## mm e1/e2/e3
 
@@ -921,148 +1109,3 @@ PYTHONPATH=src /home/jiahao/miniconda3/envs/bricknet/bin/python \
   scripts/evaluate_bricknet_agentic_stage8.py --treatment R1-B --action all --execute
 cd /home/jiahao/task/LlamaFactory
 ```
-
-# Official data v2 selection
-
-官方 data v2 只在训练或 prediction 命令中显式选择；数据构造与检查见 [data_preprocess 文档](../BrickNet/data_preprocess/README_zh.md)。
-
-```bash
-cd /home/jiahao/task/LlamaFactory
-
-# v2 SFT training example
-conda run -n llamafactory --no-capture-output llamafactory-cli train \
-  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_10k.yaml \
-  bricknet_dataset_version=v2
-
-# v2 VAL prediction example
-conda run -n llamafactory --no-capture-output llamafactory-cli train \
-  examples/train_lora/qwen35_08b_bricknet_stage2_exp4_2_nonthinking_control_predict.yaml \
-  bricknet_dataset_version=v2
-```
-
-# Official PT media render (`/data` dual-GPU server)
-
-该任务只物化未激活的 PT 官方八视图媒体，不修改 ShareGPT、`dataset_info.json`、训练图片映射或
-token cache，也不创建 `PT_v2`。冻结范围为 135,051 个既有 PT image row；正式拓扑为物理
-CUDA `0,1`、每卡 9 workers，渲染方法为 BrickNet-Render 原仓库的 `CYCLES + OPTIX`。
-
-固定输出与执行证据路径：
-
-```text
-raw views: /data/jiahao/task/BrickNet/outputs_gt/pt_8view_renders_v2_official_rowids/<row_id>/<row_id>_0000.png ... _0007.png
-collages:   /data/jiahao/task/BrickNet/outputs_preprocess/BrickNet-MM/images_v2_official/PT/<row_id>.png
-metadata:   /data/jiahao/task/BrickNet/outputs_gt/.bricknet_render_v2_official_pt/
-work/tmp:   /data/jiahao/bricknet_render_work/images_v2_official_pt/
-run logs:   /data/jiahao/task/LlamaFactory/tmp_bash/supervise_official_pt_render-<run_id>.*
-```
-
-## 1. 静态准备与只读预检
-
-下列命令不会启动 pilot 或正式渲染：
-
-```bash
-cd /data/jiahao/task/BrickNet
-
-python -m json.tool configs/bricknet_mm_image_v2_official_pt_render.json >/dev/null
-sha256sum \
-  configs/bricknet_mm_image_v2_official_pt_render.json \
-  scripts/render_bricknet_render_8views_official_pt.sh \
-  scripts/render_bricknet_render_8views.py \
-  data/bricknet_datasets/pt.npz
-
-./scripts/render_bricknet_render_8views_official_pt.sh \
-  --preflight-only --workers-per-gpu 9
-
-cd /data/jiahao/task/LlamaFactory
-bash -n tmp_bash/supervise_official_pt_render.sh
-./tmp_bash/supervise_official_pt_render.sh --self-test
-cat tmp_bash/supervise_official_pt_render.selftest.status
-```
-
-预检应报告 135,051 selected rows、253,623 graphs，并保持以下正式输入 SHA-256：
-
-```text
-PT render config:       61ec07b40077e842df8c4b768ebee5ae2b391fb35d4f0ff23e36be982ca7918a
-PT launcher:            770a355731944cd711644beb932cc9f4143ccd292e32b6bb1d7dfd85c9c740ce
-render driver:          0d36ef76c802f5ce76f4c0c839800cd7f1c3cd644074c30e257ebddae6f205ec
-PT supervisor:          9584b3d84c096c1bf9e2c007e35fd8c86d557e152b9e396cee8622363e1d4996
-pt.npz:                a3c9ebe27fa49c97a3dce2c76152522aad0bf1b9c6c1859ee639e23935597ab6
-selected ordered rows: 46f474ef26c9e1d6e44d38741dda8a83a274fde00fbee5c1672530aee1cc18ad
-PT ShareGPT:           9daa4703ae8e56afec862ce4fbe6cf9344422542b614c6327fcc09690eb4c055
-```
-
-## 2. GPU 检查与首次启动
-
-先检查两张物理卡。历史双卡 9-worker pilot 的最大显存增量为 44,007 MiB；supervisor 因而要求
-首次 pilot 前每卡至少有 52,200 MiB 空闲（实测增量加 8 GiB 余量）。若其它任务使任一卡低于该值，
-不启动；不得杀死其他用户进程，也不得把正式 worker 数降到 8 或更低。supervisor 会先做 32-row
-双卡 pilot，并根据本次实测峰值再次 fail closed。
-
-```bash
-nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu \
-  --format=csv,noheader,nounits
-nvidia-smi --query-compute-apps=gpu_uuid,pid,used_memory \
-  --format=csv,noheader,nounits
-```
-
-两张卡具备足够余量后执行：
-
-```bash
-cd /data/jiahao/task/LlamaFactory
-
-nohup ./tmp_bash/supervise_official_pt_render.sh \
-  > tmp_bash/supervise_official_pt_render.nohup.log 2>&1 &
-printf 'supervisor shell pid=%s\n' "$!"
-```
-
-## 3. 增量监控与断点恢复
-
-状态文件是当前阶段的权威入口；run-specific log、GPU TSV 和 timing JSONL 提供增量证据：
-
-```bash
-cd /data/jiahao/task/LlamaFactory
-
-sed -n '1,200p' tmp_bash/supervise_official_pt_render.status
-PT_RENDER_LOG="$(awk -F= '$1=="supervisor_log" {sub(/^[^=]*=/, ""); print; exit}' \
-  tmp_bash/supervise_official_pt_render.status)"
-tail -n 100 "$PT_RENDER_LOG"
-
-cd /data/jiahao/task/BrickNet
-jq '{split,rows_requested,stats,timing,workers_per_gpu,gpu_ids}' \
-  outputs_gt/.bricknet_render_v2_official_pt/pt_progress.json
-```
-
-遇到 supervisor 标记的可恢复 GPU/磁盘失败时，保留所有输出。确认资源恢复后复用同一 pilot 并继续；
-`skip_existing=true` 会跳过 raw+collage 均完整的 row：
-
-```bash
-cd /data/jiahao/task/LlamaFactory
-
-PT_PILOT_ROOT="$(awk -F= '$1=="pilot_root" {sub(/^[^=]*=/, ""); print; exit}' \
-  tmp_bash/supervise_official_pt_render.status)"
-test -d "$PT_PILOT_ROOT"
-
-BRICKNET_OFFICIAL_PT_PILOT_ROOT="$PT_PILOT_ROOT" \
-nohup ./tmp_bash/supervise_official_pt_render.sh \
-  > tmp_bash/supervise_official_pt_render.nohup.log 2>&1 &
-printf 'resumed supervisor shell pid=%s\n' "$!"
-```
-
-## 4. 全量 strict verify 与 completion gate
-
-只有 status 为 `stage=RENDER_COMPLETE_PENDING_VERIFY` 且 `result=OK` 才运行收尾。第一条只检查前置
-条件且不写 gate；第二条完整解码 1,080,408 张 raw PNG 和 135,051 张 collage，并原子发布 gate：
-
-```bash
-cd /data/jiahao/task/BrickNet
-
-./scripts/finalize_bricknet_render_8views_official_pt.sh --check-only
-./scripts/finalize_bricknet_render_8views_official_pt.sh
-
-jq '{status,scope,artifacts,stats,strict_verify,downstream_guard,downstream}' \
-  outputs_gt/.bricknet_render_v2_official_pt/pt_completion_gate.json
-```
-
-验收终点是 gate 的 `status=PASS`、`failed=0`、raw=1,080,408、collage=135,051，且
-`dataset_mapping_modified=false`、`new_dataset_version_created=false`。在另行批准 projection 之前，
-不得更改任何数据集图片路径。

@@ -4,17 +4,19 @@ set -Eeuo pipefail
 # One-shot supervisor for the official BrickNet-Render PT render.
 #
 # The supervisor owns only its own launcher process group and its own physical
-# CUDA 0/1 sampler.  It never kills an unrelated CUDA process.  A fresh pilot
-# and the formal render use nine workers per physical GPU (18 total).  The
+# CUDA 0/1 sampler.  It never kills an unrelated CUDA process.  The pilot uses
+# nine workers per physical GPU while the formal identity remains seven (14
+# identity slots total).  Formal runtime concurrency may be downshifted below
+# that identity cap by BRICKNET_OFFICIAL_PT_ACTIVE_WORKERS_PER_GPU.  The
 # config keeps eight as its baseline worker value; the supervisor supplies the
-# audited nine-worker override to every pilot/preflight/formal invocation.
-# The selected topology and worker count are written into the PT identity and
-# must not change on ordinary resume.
+# audited identity override to every formal invocation.
+# The selected topology and identity worker count are written into the PT
+# identity and must not change on ordinary resume.
 #
-# A clean post-format run creates a fresh dual-GPU [0,1]/9 identity.  The
-# historical single-GPU [1]/9 -> dual-GPU [0,1]/9 transition remains available
-# only if that exact old identity is deliberately restored; it never triggers
-# for an empty production tree and arbitrary refreezes are rejected.
+# A clean production tree creates a fresh dual-GPU [0,1]/7 identity.  The
+# one-time worker identity refreeze [0,1]/9 -> [0,1]/7 remains available only
+# if that exact old identity is deliberately restored; arbitrary refreezes are
+# rejected.
 #
 # A successful formal launcher is intentionally reported as
 # RENDER_COMPLETE_PENDING_VERIFY.  The supervisor does not claim strict
@@ -30,16 +32,16 @@ RENDER_DRIVER="${BRICKNET_ROOT}/scripts/render_bricknet_render_8views.py"
 PT_NPZ="${BRICKNET_ROOT}/data/bricknet_datasets/pt.npz"
 
 EXPECTED_CONFIG_SHA256="61ec07b40077e842df8c4b768ebee5ae2b391fb35d4f0ff23e36be982ca7918a"
-EXPECTED_LAUNCHER_SHA256="770a355731944cd711644beb932cc9f4143ccd292e32b6bb1d7dfd85c9c740ce"
-EXPECTED_DRIVER_SHA256="0d36ef76c802f5ce76f4c0c839800cd7f1c3cd644074c30e257ebddae6f205ec"
+EXPECTED_LAUNCHER_SHA256="4a79b248112794fde72915b1204045e32392ab4d4ba78753cddf7aa47d369855"
+EXPECTED_DRIVER_SHA256="e9e883f1d0e3282c14db0a5e7713a60f55ead88ce41575069f1e3fd86bb1876e"
 EXPECTED_PT_NPZ_SHA256="a3c9ebe27fa49c97a3dce2c76152522aad0bf1b9c6c1859ee639e23935597ab6"
 EXPECTED_RENDERER_COMMIT="b49e8733782a5fa7040cc776b5fba8c55b0b894e"
-EXPECTED_OLD_PT_IDENTITY_SHA256="de713eafb76cd637cd8c3c63c39da933eab775a1c363cbd834f9611bf9e15016"
-ALLOWED_IDENTITY_MISMATCH_FIELDS="config_sha256,render_parameters_sha256,gpu_ids"
-TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV="1"
+EXPECTED_OLD_PT_IDENTITY_SHA256="9af34d313b6d021c07c5dbfd6869de7d480e94f48fe0ecc44e92a8cafc02c0a5"
+ALLOWED_IDENTITY_MISMATCH_FIELDS="launcher_source_sha256,render_parameters_sha256,workers_per_gpu"
+TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV="0,1"
 TOPOLOGY_REFREEZE_OLD_WORKERS=9
 TOPOLOGY_REFREEZE_NEW_GPU_IDS_CSV="0,1"
-TOPOLOGY_REFREEZE_NEW_WORKERS=9
+TOPOLOGY_REFREEZE_NEW_WORKERS=7
 
 TMP_BASH="${SCRIPT_DIR}"
 LOCK_FILE="${TMP_BASH}/supervise_official_pt_render.lock"
@@ -60,10 +62,12 @@ FULL_PT_ROWS=135051
 PILOT_PT_ROWS=32
 
 GPU_PILOT_WORKERS_PER_GPU=9
-GPU_DEFAULT_FORMAL_WORKERS_PER_GPU=9
+GPU_DEFAULT_IDENTITY_WORKERS_PER_GPU=7
 # A 10-worker/GPU dual-card trial reached 96,529 MiB used on GPU 1 with only
-# 721 MiB free; nine workers/GPU is therefore the hard candidate ceiling.
-GPU_MAX_FORMAL_WORKERS_PER_GPU=9
+# 721 MiB free.  Formal concurrency is frozen at seven workers/GPU; the pilot
+# remains the separately audited nine-worker capacity probe.
+GPU_MAX_FORMAL_WORKERS_PER_GPU=7
+GPU_MAX_ACTIVE_WORKERS_PER_GPU=7
 # The audited empty-card dual9 pilot peaked at +44,007 MiB on GPU 0 and
 # +42,795 MiB on GPU 1.  Require the larger observed delta plus the 8 GiB
 # post-pilot reserve before starting another pilot; this still permits
@@ -138,7 +142,8 @@ PILOT_EXTERNAL_GPU_LOG="${PILOT_ROOT}/gpu.tsv"
 CONFIG="${BRICKNET_OFFICIAL_PT_RENDER_CONFIG:-${DEFAULT_CONFIG}}"
 PYTHON_BIN="${BRICKNET_PYTHON:-/home/jiahao/miniconda3/envs/bricknet/bin/python}"
 WORKERS_OVERRIDE="${BRICKNET_OFFICIAL_PT_WORKERS_PER_GPU:-}"
-REQUESTED_FORMAL_WORKERS="${WORKERS_OVERRIDE:-${GPU_DEFAULT_FORMAL_WORKERS_PER_GPU}}"
+REQUESTED_FORMAL_WORKERS="${WORKERS_OVERRIDE:-${GPU_DEFAULT_IDENTITY_WORKERS_PER_GPU}}"
+REQUESTED_ACTIVE_WORKERS="${BRICKNET_OFFICIAL_PT_ACTIVE_WORKERS_PER_GPU:-${GPU_MAX_ACTIVE_WORKERS_PER_GPU}}"
 STOP_BEFORE_FORMAL="${BRICKNET_OFFICIAL_PT_STOP_BEFORE_FORMAL:-0}"
 REFREEZE_WORKERS="${BRICKNET_OFFICIAL_PT_REFREEZE_WORKERS:-}"
 # Export the supervisor-selected dual-GPU config so every child, including
@@ -159,7 +164,9 @@ DATA_PROJECTED_BYTES="unknown"
 DATA_PILOT_BYTES="unknown"
 DATA_EXISTING_COMPLETE_BYTES="unknown"
 DATA_REMAINING_BYTES="unknown"
-FORMAL_WORKERS="unknown"
+IDENTITY_WORKERS_PER_GPU="${GPU_DEFAULT_IDENTITY_WORKERS_PER_GPU}"
+ACTIVE_WORKERS_PER_GPU="${REQUESTED_ACTIVE_WORKERS}"
+FORMAL_WORKERS="${IDENTITY_WORKERS_PER_GPU}"
 FORMAL_WORKER_FORMULA="unknown"
 GPU_PILOT_START_READY="unknown"
 NEEDS_IDENTITY_ADOPTION=0
@@ -167,6 +174,7 @@ TOPOLOGY_REFREEZE_REQUESTED=0
 TOPOLOGY_REFREEZE_COMPLETED=0
 IDENTITY_REFREEZE_COMPLETED=0
 IDENTITY_OLD_WORKERS="unknown"
+REFREEZE_RESUME_REQUIRED=0
 IDENTITY_ADOPTION_ARCHIVE_ROOT="/data/jiahao/bricknet_render_work/images_v2_official_pt/failed/pt/reports"
 IDENTITY_ADOPTION_ARCHIVE_COUNT_BEFORE=0
 declare -A SNAP_MEM=()
@@ -188,7 +196,7 @@ write_status() {
   local stage="$1"
   local result="$2"
   local detail="${3:-}"
-  local now tmp_path resume_command pilot_resume_env=""
+  local now tmp_path resume_command pilot_resume_env="" resume_refreeze_workers
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   tmp_path="${STATUS_FILE}.tmp.$$"
   detail="${detail//$'\n'/ | }"
@@ -198,12 +206,13 @@ write_status() {
   if [[ -d "${PILOT_ROOT}" && ! -L "${PILOT_ROOT}" ]]; then
     pilot_resume_env="BRICKNET_OFFICIAL_PT_PILOT_ROOT=${PILOT_ROOT}"
   fi
+  resume_refreeze_workers="${REFREEZE_WORKERS:-${TOPOLOGY_REFREEZE_NEW_WORKERS}}"
   if (( SELF_TEST == 1 )); then
     resume_command="none"
-  elif (( NEEDS_IDENTITY_ADOPTION != 0 )); then
-    resume_command="BRICKNET_OFFICIAL_PT_RENDER_CONFIG=${CONFIG} BRICKNET_OFFICIAL_PT_WORKERS_PER_GPU=${FORMAL_WORKERS} BRICKNET_OFFICIAL_PT_REFREEZE_WORKERS=${REFREEZE_WORKERS} ${pilot_resume_env} ${SCRIPT_PATH}"
+  elif (( NEEDS_IDENTITY_ADOPTION != 0 || REFREEZE_RESUME_REQUIRED != 0 )); then
+    resume_command="BRICKNET_OFFICIAL_PT_RENDER_CONFIG=${CONFIG} BRICKNET_OFFICIAL_PT_WORKERS_PER_GPU=${IDENTITY_WORKERS_PER_GPU} BRICKNET_OFFICIAL_PT_ACTIVE_WORKERS_PER_GPU=${ACTIVE_WORKERS_PER_GPU} BRICKNET_OFFICIAL_PT_REFREEZE_WORKERS=${resume_refreeze_workers} ${pilot_resume_env} ${SCRIPT_PATH}"
   else
-    resume_command="BRICKNET_OFFICIAL_PT_RENDER_CONFIG=${CONFIG} BRICKNET_OFFICIAL_PT_WORKERS_PER_GPU=${FORMAL_WORKERS} ${pilot_resume_env} ${SCRIPT_PATH}"
+    resume_command="BRICKNET_OFFICIAL_PT_RENDER_CONFIG=${CONFIG} BRICKNET_OFFICIAL_PT_WORKERS_PER_GPU=${IDENTITY_WORKERS_PER_GPU} BRICKNET_OFFICIAL_PT_ACTIVE_WORKERS_PER_GPU=${ACTIVE_WORKERS_PER_GPU} ${pilot_resume_env} ${SCRIPT_PATH}"
   fi
   {
     printf 'run_id=%s\n' "${RUN_ID}"
@@ -229,7 +238,10 @@ write_status() {
     printf 'gpu_ids=%s\n' "${GPU_IDS_CSV}"
     printf 'config_workers_per_gpu=%s\n' "${CONFIG_WORKERS_PER_GPU}"
     printf 'pilot_workers_per_gpu=%s\n' "${GPU_PILOT_WORKERS_PER_GPU}"
-    printf 'formal_workers_per_gpu=%s\n' "${FORMAL_WORKERS}"
+    printf 'identity_workers_per_gpu=%s\n' "${IDENTITY_WORKERS_PER_GPU}"
+    printf 'active_workers_per_gpu=%s\n' "${ACTIVE_WORKERS_PER_GPU}"
+    printf 'worker_policy=identity_cap_plus_runtime_downshift\n'
+    printf 'formal_workers_per_gpu=%s\n' "${IDENTITY_WORKERS_PER_GPU}"
     printf 'formal_worker_formula=%s\n' "${FORMAL_WORKER_FORMULA}"
     printf 'gpu_pilot_start_ready=%s\n' "${GPU_PILOT_START_READY}"
     printf 'gpu_pilot_start_min_free_mib=%s\n' "${GPU_PILOT_START_MIN_FREE_MIB}"
@@ -323,6 +335,7 @@ cleanup_gpu_sampler() {
 
 on_exit() {
   local exit_code="$?"
+  local recorded_pid=""
   trap - EXIT
   set +e
   if [[ -n "${CHILD_PID:-}" ]]; then
@@ -333,6 +346,12 @@ on_exit() {
     STATUS_FINAL_WRITTEN=1
     write_status "${CURRENT_STAGE:-UNKNOWN}" FAILED "supervisor_exit exit_code=${exit_code}"
     log "supervisor exit status=${exit_code}"
+  fi
+  if [[ -f "${PID_FILE}" && ! -L "${PID_FILE}" ]]; then
+    IFS= read -r recorded_pid <"${PID_FILE}" || recorded_pid=""
+    if [[ "${recorded_pid}" == "$$" ]]; then
+      rm -f -- "${PID_FILE}"
+    fi
   fi
   exit "${exit_code}"
 }
@@ -461,6 +480,14 @@ validate_worker_request() {
   fi
 }
 
+validate_active_worker_request() {
+  if [[ ! "${REQUESTED_ACTIVE_WORKERS}" =~ ^[1-9][0-9]*$ ]] || \
+    (( REQUESTED_ACTIVE_WORKERS > GPU_MAX_ACTIVE_WORKERS_PER_GPU )); then
+    fail_stage "BRICKNET_OFFICIAL_PT_ACTIVE_WORKERS_PER_GPU must be an integer in 1..${GPU_MAX_ACTIVE_WORKERS_PER_GPU}; got ${REQUESTED_ACTIVE_WORKERS}" 2
+  fi
+  ACTIVE_WORKERS_PER_GPU="${REQUESTED_ACTIVE_WORKERS}"
+}
+
 validate_refreeze_request() {
   [[ -n "${REFREEZE_WORKERS}" ]] || return 0
   if [[ ! "${REFREEZE_WORKERS}" =~ ^[1-9][0-9]*$ ]] || \
@@ -501,12 +528,22 @@ initial_gpu_capacity_gate() {
   fi
   log "initial GPU snapshot ${SNAPSHOT_TEXT}"
   for gpu_id in "${GPU_IDS[@]}"; do
-    if (( SNAP_FREE[${gpu_id}] < GPU_PILOT_START_MIN_FREE_MIB )); then
+    # A reused pilot already paid the nine-worker capacity probe.  Do not
+    # replay its 52.2 GiB fresh-pilot admission gate; only reject an unsafe
+    # current query/ceiling state.  Formal capacity is checked later against
+    # the requested active worker count and the pilot's measured per-worker
+    # increment.
+    local start_min_free="${GPU_PILOT_START_MIN_FREE_MIB}" start_gate_label="fresh-pilot"
+    if (( PILOT_REUSED != 0 )); then
+      start_min_free="${GPU_PILOT_HARD_MIN_FREE_MIB}"
+      start_gate_label="reused-pilot-hard"
+    fi
+    if (( SNAP_FREE[${gpu_id}] < start_min_free )); then
       GPU_PILOT_START_READY=0
       if (( SELF_TEST == 0 )); then
-        fail_stage "GPU ${gpu_id} has only ${SNAP_FREE[${gpu_id}]} MiB free; audited ${GPU_PILOT_WORKERS_PER_GPU}-worker pilot requires at least ${GPU_PILOT_START_MIN_FREE_MIB} MiB before launch" 1
+        fail_stage "GPU ${gpu_id} has only ${SNAP_FREE[${gpu_id}]} MiB free; ${start_gate_label} gate requires at least ${start_min_free} MiB before launch" 1
       fi
-      log "self-test capacity note gpu=${gpu_id} free_mib=${SNAP_FREE[${gpu_id}]} start_required_mib=${GPU_PILOT_START_MIN_FREE_MIB} pilot_not_ready=1"
+      log "self-test capacity note gpu=${gpu_id} free_mib=${SNAP_FREE[${gpu_id}]} start_required_mib=${start_min_free} pilot_not_ready=1 pilot_reused=${PILOT_REUSED}"
     fi
     if (( SNAP_MEM[${gpu_id}] >= GPU_MAX_USED_MIB )); then
       GPU_PILOT_START_READY=0
@@ -868,15 +905,15 @@ estimate_space_after_pilot() {
 
 choose_formal_workers() {
   local gpu_id delta per_worker current_used current_free budget capacity
-  local min_capacity=999999
+  local min_active_capacity=999999
   local requested_cap production_root production_entry
   local existing_identity="${METADATA_ROOT}/pt_identity.json"
   if ! gpu_snapshot; then
     fail_stage "formal preflight GPU query failed" 1
   fi
-  # Recompute capacity from this pilot even on resume.  The persisted identity
-  # fixes the worker count, while the fresh pilot proves that the same count
-  # still fits beside whatever CUDA jobs are present now.
+  # Recompute runtime capacity from this pilot even on resume.  The persisted
+  # identity fixes the worker count at seven; only the active runtime count is
+  # allowed to consume the current free-memory budget.
   for gpu_id in "${GPU_IDS[@]}"; do
     delta=$((PILOT_PEAK_MEM[${gpu_id}] - PILOT_BASELINE_MEM[${gpu_id}]))
     (( delta < 0 )) && delta=0
@@ -890,16 +927,16 @@ choose_formal_workers() {
     # the independent hard stop at used>=95000/free<2048 during execution.
     budget=$((current_free - GPU_FORMAL_SAFETY_MIB))
     capacity=$((budget / per_worker))
-    if (( capacity < min_capacity )); then
-      min_capacity="${capacity}"
+    if (( capacity < min_active_capacity )); then
+      min_active_capacity="${capacity}"
     fi
     log "formal_capacity gpu=${gpu_id} baseline_used_mib=${PILOT_BASELINE_MEM[${gpu_id}]} pilot_peak_used_mib=${PILOT_PEAK_MEM[${gpu_id}]} pilot_delta_mib=${delta} estimated_per_worker_increment_mib=${per_worker} current_used_mib=${current_used} current_free_mib=${current_free} budget_mib=${budget} capacity_workers=${capacity}"
   done
-  if (( min_capacity < 1 )); then
-    fail_stage "formal GPU capacity is below one worker after ${GPU_FORMAL_SAFETY_MIB} MiB safety reserve: capacity=${min_capacity}" 1
+  if (( min_active_capacity < 1 )); then
+    fail_stage "formal GPU capacity is below one active worker after ${GPU_FORMAL_SAFETY_MIB} MiB safety reserve: capacity=${min_active_capacity}" 1
   fi
   if [[ -s "${existing_identity}" ]]; then
-    local existing_workers existing_gpu_ids identity_sha archived_identity_count=0
+    local existing_workers existing_gpu_ids identity_sha archived_identity_count=0 archived_identity_sha_matches=0
     existing_workers="$(jq -er '.workers_per_gpu' "${existing_identity}")" \
       || fail_stage "existing PT identity has no workers_per_gpu: ${existing_identity}" 1
     existing_gpu_ids="$(jq -er '[.gpu_ids[]] | join(",")' "${existing_identity}")" \
@@ -919,11 +956,16 @@ choose_formal_workers() {
         if (( archived_identity_count == 0 )); then
           fail_stage "topology refreeze appears complete but no adopted old identity archive proves it" 1
         fi
+        archived_identity_sha_matches="$(find -P "${IDENTITY_ADOPTION_ARCHIVE_ROOT}" -maxdepth 1 -type f -name 'pt_identity-*.json' -exec sha256sum -- {} + | awk -v expected="${EXPECTED_OLD_PT_IDENTITY_SHA256}" '$1 == expected {count++} END {print count + 0}')"
+        if (( archived_identity_sha_matches < 1 )); then
+          fail_stage "topology refreeze archive must contain an old identity SHA-256=${EXPECTED_OLD_PT_IDENTITY_SHA256}; matches=${archived_identity_sha_matches}" 1
+        fi
         FORMAL_WORKERS="${existing_workers}"
+        IDENTITY_OLD_WORKERS="${TOPOLOGY_REFREEZE_OLD_WORKERS}"
         IDENTITY_REFREEZE_COMPLETED=1
         TOPOLOGY_REFREEZE_COMPLETED=1
-        FORMAL_WORKER_FORMULA="topology_refreeze_already_complete old_gpu_ids=${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV} old_workers=${TOPOLOGY_REFREEZE_OLD_WORKERS} new_gpu_ids=${existing_gpu_ids} new_workers=${FORMAL_WORKERS} archived_identity_count=${archived_identity_count}"
-        log "topology refreeze already complete at gpu_ids=${existing_gpu_ids} workers=${FORMAL_WORKERS}; archive count=${archived_identity_count}"
+        FORMAL_WORKER_FORMULA="worker_identity_refreeze_already_complete old_gpu_ids=${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV} old_workers=${TOPOLOGY_REFREEZE_OLD_WORKERS} new_gpu_ids=${existing_gpu_ids} identity_workers=${FORMAL_WORKERS} active_workers=${ACTIVE_WORKERS_PER_GPU} capacity=${min_active_capacity} archived_identity_count=${archived_identity_count}"
+        log "worker identity refreeze already complete at gpu_ids=${existing_gpu_ids} identity_workers=${FORMAL_WORKERS} active_workers=${ACTIVE_WORKERS_PER_GPU}; archive count=${archived_identity_count}"
       elif [[ "${existing_gpu_ids}" == "${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV}" &&
         "${existing_workers}" == "${TOPOLOGY_REFREEZE_OLD_WORKERS}" &&
         "${REFREEZE_WORKERS}" == "${TOPOLOGY_REFREEZE_NEW_WORKERS}" ]]; then
@@ -938,11 +980,8 @@ choose_formal_workers() {
         if [[ -d "${IDENTITY_ADOPTION_ARCHIVE_ROOT}" ]]; then
           IDENTITY_ADOPTION_ARCHIVE_COUNT_BEFORE="$(find -P "${IDENTITY_ADOPTION_ARCHIVE_ROOT}" -maxdepth 1 -type f -name 'pt_identity-*.json' -printf 'x\n' | wc -l)"
         fi
-        if (( FORMAL_WORKERS > min_capacity )); then
-          fail_stage "topology refreeze workers=${FORMAL_WORKERS} exceeds current minimum dual-GPU capacity=${min_capacity}; outputs preserved, retry when more memory is free" 1
-        fi
-        FORMAL_WORKER_FORMULA="topology_refreeze old_gpu_ids=${existing_gpu_ids} old_workers=${existing_workers} new_gpu_ids=${GPU_IDS_CSV} new_workers=${FORMAL_WORKERS} capacity=${min_capacity}; explicit_adopt_existing=1"
-        log "topology refreeze selected old_gpu_ids=${existing_gpu_ids} old_workers=${existing_workers} new_gpu_ids=${GPU_IDS_CSV} new_workers=${FORMAL_WORKERS}; driver will archive old identity under ${IDENTITY_ADOPTION_ARCHIVE_ROOT}"
+        FORMAL_WORKER_FORMULA="worker_identity_refreeze old_gpu_ids=${existing_gpu_ids} old_workers=${existing_workers} new_gpu_ids=${GPU_IDS_CSV} identity_workers=${FORMAL_WORKERS} active_workers=${ACTIVE_WORKERS_PER_GPU} capacity=${min_active_capacity}; explicit_adopt_existing=1"
+        log "worker identity refreeze selected old_gpu_ids=${existing_gpu_ids} old_workers=${existing_workers} new_gpu_ids=${GPU_IDS_CSV} identity_workers=${FORMAL_WORKERS} active_workers=${ACTIVE_WORKERS_PER_GPU}; driver will archive old identity under ${IDENTITY_ADOPTION_ARCHIVE_ROOT}"
       else
         fail_stage "refreeze request is not the exact audited transition ${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV}/${TOPOLOGY_REFREEZE_OLD_WORKERS}->${TOPOLOGY_REFREEZE_NEW_GPU_IDS_CSV}/${TOPOLOGY_REFREEZE_NEW_WORKERS}; existing=${existing_gpu_ids}/${existing_workers} requested=${REFREEZE_WORKERS}" 1
       fi
@@ -951,15 +990,22 @@ choose_formal_workers() {
         "${existing_workers}" != "${TOPOLOGY_REFREEZE_NEW_WORKERS}" ]]; then
         fail_stage "ordinary dual-CUDA resume requires adopted identity gpu_ids=${TOPOLOGY_REFREEZE_NEW_GPU_IDS_CSV} workers=${TOPOLOGY_REFREEZE_NEW_WORKERS}; existing=${existing_gpu_ids}/${existing_workers}; run the one-time topology refreeze first" 1
       fi
+      if [[ -d "${IDENTITY_ADOPTION_ARCHIVE_ROOT}" ]]; then
+        archived_identity_count="$(find -P "${IDENTITY_ADOPTION_ARCHIVE_ROOT}" -maxdepth 1 -type f -name 'pt_identity-*.json' -printf 'x\n' | wc -l)"
+      fi
+      if (( archived_identity_count > 0 )); then
+        archived_identity_sha_matches="$(find -P "${IDENTITY_ADOPTION_ARCHIVE_ROOT}" -maxdepth 1 -type f -name 'pt_identity-*.json' -exec sha256sum -- {} + | awk -v expected="${EXPECTED_OLD_PT_IDENTITY_SHA256}" '$1 == expected {count++} END {print count + 0}')"
+        if (( archived_identity_sha_matches < 1 )); then
+          fail_stage "existing dual-CUDA/7 identity has ${archived_identity_count} archived identity file(s), but none matches old identity SHA-256=${EXPECTED_OLD_PT_IDENTITY_SHA256}" 1
+        fi
+        log "existing dual-CUDA/7 identity has archived dual-CUDA/9 provenance; ordinary resume keeps identity cap=${TOPOLOGY_REFREEZE_NEW_WORKERS} without another adoption"
+      fi
       if [[ -n "${WORKERS_OVERRIDE}" && "${WORKERS_OVERRIDE}" != "auto" && "${WORKERS_OVERRIDE}" != "${TOPOLOGY_REFREEZE_NEW_WORKERS}" ]]; then
         fail_stage "resume requires fixed dual-CUDA workers_per_gpu=${TOPOLOGY_REFREEZE_NEW_WORKERS}; requested=${WORKERS_OVERRIDE}" 1
       fi
       FORMAL_WORKERS="${existing_workers}"
-      if (( FORMAL_WORKERS > min_capacity )); then
-        fail_stage "resume identity requires workers_per_gpu=${FORMAL_WORKERS}, but current GPU capacity permits only ${min_capacity}; outputs preserved, retry when more memory is free" 1
-      fi
-      FORMAL_WORKER_FORMULA="resume_existing_identity_workers=${existing_workers} capacity=${min_capacity}"
-      log "resume identity fixes formal workers_per_gpu=${FORMAL_WORKERS}"
+      FORMAL_WORKER_FORMULA="resume_existing_identity_workers=${existing_workers} active_workers=${ACTIVE_WORKERS_PER_GPU} capacity=${min_active_capacity}"
+      log "resume identity fixes formal identity workers_per_gpu=${FORMAL_WORKERS} active_workers_per_gpu=${ACTIVE_WORKERS_PER_GPU}"
     fi
   else
     if [[ -n "${REFREEZE_WORKERS}" ]]; then
@@ -978,20 +1024,17 @@ choose_formal_workers() {
       fi
     done
     requested_cap="${TOPOLOGY_REFREEZE_NEW_WORKERS}"
-    if (( min_capacity < requested_cap )); then
-      fail_stage "fresh dual topology is frozen at ${requested_cap} workers/GPU, but current pilot-derived capacity is ${min_capacity}; wait for GPU memory instead of changing the identity" 1
-    fi
     FORMAL_WORKERS="${requested_cap}"
-    FORMAL_WORKER_FORMULA="fresh_frozen_dual_workers=${FORMAL_WORKERS} capacity=${min_capacity}; pilot_workers=${GPU_PILOT_WORKERS_PER_GPU}; safety_mib=${GPU_FORMAL_SAFETY_MIB}"
+    FORMAL_WORKER_FORMULA="fresh_frozen_dual_identity_workers=${FORMAL_WORKERS} active_workers=${ACTIVE_WORKERS_PER_GPU} capacity=${min_active_capacity}; pilot_workers=${GPU_PILOT_WORKERS_PER_GPU}; safety_mib=${GPU_FORMAL_SAFETY_MIB}"
   fi
-  if (( FORMAL_WORKERS > min_capacity )); then
-    fail_stage "selected formal workers=${FORMAL_WORKERS} exceeds current GPU capacity=${min_capacity}; outputs preserved, retry when more memory is free" 1
+  if (( ACTIVE_WORKERS_PER_GPU > min_active_capacity )); then
+    fail_stage "selected active workers=${ACTIVE_WORKERS_PER_GPU} exceeds current minimum dual-GPU capacity=${min_active_capacity}; outputs preserved, retry when more memory is free" 1
   fi
-  if (( FORMAL_WORKERS < 1 || FORMAL_WORKERS > GPU_MAX_FORMAL_WORKERS_PER_GPU )); then
-    fail_stage "selected formal workers out of range: ${FORMAL_WORKERS}" 1
+  if (( FORMAL_WORKERS != IDENTITY_WORKERS_PER_GPU )); then
+    fail_stage "selected identity workers must remain ${IDENTITY_WORKERS_PER_GPU}; got ${FORMAL_WORKERS}" 1
   fi
   write_status FORMAL_WORKERS_SELECTED RUNNING "${FORMAL_WORKER_FORMULA}"
-  log "${FORMAL_WORKER_FORMULA} selected=${FORMAL_WORKERS}"
+  log "${FORMAL_WORKER_FORMULA} identity_selected=${FORMAL_WORKERS} active_selected=${ACTIVE_WORKERS_PER_GPU}"
 }
 
 formal_gpu_gate() {
@@ -1001,18 +1044,18 @@ formal_gpu_gate() {
   fi
   for gpu_id in "${GPU_IDS[@]}"; do
     per_worker="${PILOT_PER_WORKER_MIB[${gpu_id}]:-1}"
-    required_free=$((FORMAL_WORKERS * per_worker + GPU_FORMAL_SAFETY_MIB))
+    required_free=$((ACTIVE_WORKERS_PER_GPU * per_worker + GPU_FORMAL_SAFETY_MIB))
     if (( required_free < GPU_FORMAL_SAFETY_MIB )); then
       required_free="${GPU_FORMAL_SAFETY_MIB}"
     fi
     if (( SNAP_FREE[${gpu_id}] < required_free )); then
-      fail_stage "formal GPU ${gpu_id} free memory ${SNAP_FREE[${gpu_id}]} MiB is below conservative threshold ${required_free} MiB" 1
+    fail_stage "formal GPU ${gpu_id} free memory ${SNAP_FREE[${gpu_id}]} MiB is below active=${ACTIVE_WORKERS_PER_GPU} conservative threshold ${required_free} MiB" 1
     fi
     if (( SNAP_MEM[${gpu_id}] + GPU_FORMAL_SAFETY_MIB >= GPU_MAX_USED_MIB )); then
       fail_stage "formal GPU ${gpu_id} current used memory ${SNAP_MEM[${gpu_id}]} MiB leaves less than ${GPU_FORMAL_SAFETY_MIB} MiB below ceiling" 1
     fi
   done
-  log "formal GPU gate passed ${SNAPSHOT_TEXT} required_free_formula=formal_workers*estimated_per_worker_increment+${GPU_FORMAL_SAFETY_MIB}MiB"
+  log "formal GPU gate passed ${SNAPSHOT_TEXT} required_free_formula=active_workers*estimated_per_worker_increment+${GPU_FORMAL_SAFETY_MIB}MiB active_workers=${ACTIVE_WORKERS_PER_GPU} identity_workers=${IDENTITY_WORKERS_PER_GPU}"
 }
 
 mark_identity_refreeze_complete() {
@@ -1034,8 +1077,8 @@ mark_identity_refreeze_complete() {
   NEEDS_IDENTITY_ADOPTION=0
   IDENTITY_REFREEZE_COMPLETED=1
   TOPOLOGY_REFREEZE_COMPLETED=1
-  log "topology refreeze completed old_gpu_ids=${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV} old_workers=${IDENTITY_OLD_WORKERS} new_gpu_ids=${current_gpu_ids} new_workers=${FORMAL_WORKERS}; archived_old_identity_count=${archive_count} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; subsequent resume command is fixed dual-CUDA workers=${FORMAL_WORKERS} without refreeze"
-  write_status FORMAL_RENDER RUNNING "topology_refreeze_completed old_gpu_ids=${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV} old_workers=${IDENTITY_OLD_WORKERS} new_gpu_ids=${current_gpu_ids} new_workers=${FORMAL_WORKERS} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT} subsequent resume uses dual-CUDA workers=${FORMAL_WORKERS} without refreeze"
+  log "worker identity refreeze completed old_gpu_ids=${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV} old_workers=${IDENTITY_OLD_WORKERS} new_gpu_ids=${current_gpu_ids} new_workers=${FORMAL_WORKERS}; archived_old_identity_count=${archive_count} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; subsequent resume command retains explicit refreeze workers=${FORMAL_WORKERS}"
+  write_status FORMAL_RENDER RUNNING "worker_identity_refreeze_completed old_gpu_ids=${TOPOLOGY_REFREEZE_OLD_GPU_IDS_CSV} old_workers=${IDENTITY_OLD_WORKERS} new_gpu_ids=${current_gpu_ids} new_workers=${FORMAL_WORKERS} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT} subsequent resume retains explicit refreeze workers=${FORMAL_WORKERS}"
   return 0
 }
 
@@ -1109,11 +1152,17 @@ run_isolated_pilot() {
 
 run_formal_render() {
   local formal_rc=0 current_free watchdog_seconds=0 adoption_wait=0
-  local launch_args=(--workers-per-gpu "${FORMAL_WORKERS}")
+  local launch_args=(
+    --workers-per-gpu "${IDENTITY_WORKERS_PER_GPU}"
+    --active-workers-per-gpu "${ACTIVE_WORKERS_PER_GPU}"
+  )
   formal_gpu_gate
-  set_stage FORMAL_PREFLIGHT "launcher=${OFFICIAL_LAUNCHER} workers_per_gpu=${FORMAL_WORKERS}"
-  if env BRICKNET_OFFICIAL_PT_RENDER_CONFIG="${CONFIG}" "${OFFICIAL_LAUNCHER}" --preflight-only --workers-per-gpu "${FORMAL_WORKERS}"; then
-    stage_ok FORMAL_PREFLIGHT_OK "workers_per_gpu=${FORMAL_WORKERS}"
+  set_stage FORMAL_PREFLIGHT "launcher=${OFFICIAL_LAUNCHER} identity_workers_per_gpu=${IDENTITY_WORKERS_PER_GPU} active_workers_per_gpu=${ACTIVE_WORKERS_PER_GPU}"
+  if env BRICKNET_OFFICIAL_PT_RENDER_CONFIG="${CONFIG}" "${OFFICIAL_LAUNCHER}" \
+    --preflight-only \
+    --workers-per-gpu "${IDENTITY_WORKERS_PER_GPU}" \
+    --active-workers-per-gpu "${ACTIVE_WORKERS_PER_GPU}"; then
+    stage_ok FORMAL_PREFLIGHT_OK "identity_workers_per_gpu=${IDENTITY_WORKERS_PER_GPU} active_workers_per_gpu=${ACTIVE_WORKERS_PER_GPU}"
   else
     formal_rc="$?"
     fail_stage "formal PT preflight failed" "${formal_rc}"
@@ -1129,9 +1178,9 @@ run_formal_render() {
   start_gpu_sampler formal
   if (( NEEDS_IDENTITY_ADOPTION != 0 )); then
     launch_args+=(--adopt-existing)
-    set_stage FORMAL_RENDER "launcher=${OFFICIAL_LAUNCHER} workers_per_gpu=${FORMAL_WORKERS} identity_refreeze=${IDENTITY_OLD_WORKERS}->${FORMAL_WORKERS} adopt_existing=1 archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT} gpu_ids=${GPU_IDS_CSV} raw=${RAW_ROOT} collage=${COLLAGE_ROOT}"
+    set_stage FORMAL_RENDER "launcher=${OFFICIAL_LAUNCHER} identity_workers_per_gpu=${IDENTITY_WORKERS_PER_GPU} active_workers_per_gpu=${ACTIVE_WORKERS_PER_GPU} identity_refreeze=${IDENTITY_OLD_WORKERS}->${IDENTITY_WORKERS_PER_GPU} adopt_existing=1 archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT} gpu_ids=${GPU_IDS_CSV} raw=${RAW_ROOT} collage=${COLLAGE_ROOT}"
   else
-    set_stage FORMAL_RENDER "launcher=${OFFICIAL_LAUNCHER} workers_per_gpu=${FORMAL_WORKERS} gpu_ids=${GPU_IDS_CSV} raw=${RAW_ROOT} collage=${COLLAGE_ROOT}"
+    set_stage FORMAL_RENDER "launcher=${OFFICIAL_LAUNCHER} identity_workers_per_gpu=${IDENTITY_WORKERS_PER_GPU} active_workers_per_gpu=${ACTIVE_WORKERS_PER_GPU} gpu_ids=${GPU_IDS_CSV} raw=${RAW_ROOT} collage=${COLLAGE_ROOT}"
   fi
   set +e
   if (( NEEDS_IDENTITY_ADOPTION != 0 )); then
@@ -1147,10 +1196,10 @@ run_formal_render() {
   CHILD_PID="$!"
   CHILD_KIND="formal"
   if (( NEEDS_IDENTITY_ADOPTION != 0 )); then
-    # The driver archives the old single-GPU/9 identity and atomically writes
-    # the dual-GPU/9 identity before scheduling rows.  Confirm that transition
-    # at startup so any later recoverable status can use the ordinary dual-GPU/9
-    # resume command rather than attempting a second topology adoption.
+    # The driver archives the old dual-GPU/9 identity and atomically writes the
+    # dual-GPU/7 identity before scheduling rows.  Confirm that transition at
+    # startup so any later recoverable status can use the ordinary dual-GPU/7
+    # resume command rather than attempting a second worker adoption.
     adoption_wait=0
     while (( adoption_wait < 60 )) && kill -0 "${CHILD_PID}" 2>/dev/null; do
       if mark_identity_refreeze_complete; then
@@ -1183,11 +1232,11 @@ run_formal_render() {
       CURRENT_STAGE="RECOVERABLE_GPU_PRESSURE"
       STATUS_FINAL_WRITTEN=1
       if (( NEEDS_IDENTITY_ADOPTION != 0 )); then
-        write_status RECOVERABLE_GPU_PRESSURE FAILED "GPU capacity/query guard stopped the formal process; outputs preserved; identity refreeze old_workers=${IDENTITY_OLD_WORKERS} new_workers=${FORMAL_WORKERS} was not completed; archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; retry with explicit refreeze workers=${FORMAL_WORKERS}"
-        log "stage=RECOVERABLE_GPU_PRESSURE result=FAILED formal_rc=${formal_rc} identity_refreeze=${IDENTITY_OLD_WORKERS}->${FORMAL_WORKERS} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT} evidence=${GPU_SAMPLE_ERROR}"
+        write_status RECOVERABLE_GPU_PRESSURE FAILED "GPU capacity/query guard stopped the formal process; outputs preserved; identity refreeze old_workers=${IDENTITY_OLD_WORKERS} new_workers=${IDENTITY_WORKERS_PER_GPU} was not completed; active_workers=${ACTIVE_WORKERS_PER_GPU}; archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; retry with explicit refreeze workers=${IDENTITY_WORKERS_PER_GPU}"
+        log "stage=RECOVERABLE_GPU_PRESSURE result=FAILED formal_rc=${formal_rc} identity_refreeze=${IDENTITY_OLD_WORKERS}->${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT} evidence=${GPU_SAMPLE_ERROR}"
       else
-        write_status RECOVERABLE_GPU_PRESSURE FAILED "GPU capacity/query guard stopped the formal process; outputs preserved; retry the same workers=${FORMAL_WORKERS} when sufficient GPU memory is available"
-        log "stage=RECOVERABLE_GPU_PRESSURE result=FAILED formal_rc=${formal_rc} resume_workers=${FORMAL_WORKERS} evidence=${GPU_SAMPLE_ERROR}"
+        write_status RECOVERABLE_GPU_PRESSURE FAILED "GPU capacity/query guard stopped the formal process; outputs preserved; retry identity_workers=${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU} when sufficient GPU memory is available"
+        log "stage=RECOVERABLE_GPU_PRESSURE result=FAILED formal_rc=${formal_rc} resume_identity_workers=${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU} evidence=${GPU_SAMPLE_ERROR}"
       fi
       exit 76
     fi
@@ -1208,7 +1257,7 @@ run_formal_render() {
       cleanup_gpu_sampler
       CURRENT_STAGE="RECOVERABLE_DISK_LOW"
       STATUS_FINAL_WRITTEN=1
-      write_status RECOVERABLE_DISK_LOW FAILED "disk watchdog query failed; formal process terminated; outputs preserved; rerun resume command with the same workers=${FORMAL_WORKERS}"
+      write_status RECOVERABLE_DISK_LOW FAILED "disk watchdog query failed; formal process terminated; outputs preserved; rerun identity_workers=${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU}"
       log "stage=RECOVERABLE_DISK_LOW result=FAILED disk watchdog query failed formal_rc=${formal_rc}"
       exit 74
     fi
@@ -1227,7 +1276,7 @@ run_formal_render() {
       CURRENT_STAGE="RECOVERABLE_DISK_LOW"
       STATUS_FINAL_WRITTEN=1
       write_status RECOVERABLE_DISK_LOW FAILED "available_bytes=${DATA_FREE_BYTES} low_watermark_bytes=${DISK_LOW_WATERMARK_BYTES} formal process terminated; outputs preserved; complete raw+collage rows resume via skip_existing and partial rows are atomically retried"
-      log "stage=RECOVERABLE_DISK_LOW result=FAILED formal_rc=${formal_rc} resume_workers=${FORMAL_WORKERS}"
+      log "stage=RECOVERABLE_DISK_LOW result=FAILED formal_rc=${formal_rc} resume_identity_workers=${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU}"
       exit 74
     fi
   done
@@ -1237,6 +1286,11 @@ run_formal_render() {
   CHILD_PID=""
   CHILD_KIND=""
   cleanup_gpu_sampler
+  if (( formal_rc == 0 && NEEDS_IDENTITY_ADOPTION != 0 )); then
+    if ! mark_identity_refreeze_complete; then
+      fail_stage "formal PT launcher exited successfully before the worker identity refreeze was observable; outputs preserved for explicit refreeze resume" 1
+    fi
+  fi
   if (( formal_rc != 0 )); then
     if grep -Eiq 'out of memory|cuda.*memory|optix.*error|memory allocation' "${SUPERVISOR_LOG}" 2>/dev/null; then
       fail_stage "formal PT render failed with likely GPU capacity/OOM evidence; outputs preserved for resume" "${formal_rc}"
@@ -1246,11 +1300,11 @@ run_formal_render() {
   DATA_FREE_BYTES="$(read_data_free_bytes 2>/dev/null || printf '%s' unknown)"
   STATUS_FINAL_WRITTEN=1
   if (( NEEDS_IDENTITY_ADOPTION != 0 )); then
-    write_status RENDER_COMPLETE_PENDING_VERIFY OK "formal launcher exited successfully; identity refreeze old_workers=${IDENTITY_OLD_WORKERS} new_workers=${FORMAL_WORKERS}; adopted identity archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; strict --verify-only and PT completion gate remain required; outputs=${RAW_ROOT},${COLLAGE_ROOT}"
-    log "stage=RENDER_COMPLETE_PENDING_VERIFY result=OK formal render exited; identity_refreeze=${IDENTITY_OLD_WORKERS}->${FORMAL_WORKERS} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; strict verify and gate are still pending"
+    write_status RENDER_COMPLETE_PENDING_VERIFY OK "formal launcher exited successfully; identity refreeze old_workers=${IDENTITY_OLD_WORKERS} new_workers=${IDENTITY_WORKERS_PER_GPU}; active_workers=${ACTIVE_WORKERS_PER_GPU}; adopted identity archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; strict --verify-only and PT completion gate remain required; outputs=${RAW_ROOT},${COLLAGE_ROOT}"
+    log "stage=RENDER_COMPLETE_PENDING_VERIFY result=OK formal render exited; identity_refreeze=${IDENTITY_OLD_WORKERS}->${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU} archive_root=${IDENTITY_ADOPTION_ARCHIVE_ROOT}; strict verify and gate are still pending"
   else
-    write_status RENDER_COMPLETE_PENDING_VERIFY OK "formal launcher exited successfully; strict --verify-only and PT completion gate remain required; outputs=${RAW_ROOT},${COLLAGE_ROOT}"
-    log "stage=RENDER_COMPLETE_PENDING_VERIFY result=OK formal render exited; strict verify and gate are still pending"
+    write_status RENDER_COMPLETE_PENDING_VERIFY OK "formal launcher exited successfully; identity_workers=${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU}; strict --verify-only and PT completion gate remain required; outputs=${RAW_ROOT},${COLLAGE_ROOT}"
+    log "stage=RENDER_COMPLETE_PENDING_VERIFY result=OK formal render exited; identity_workers=${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU}; strict verify and gate are still pending"
   fi
   exit 0
 }
@@ -1269,6 +1323,7 @@ command -v setsid >/dev/null 2>&1 || fail_stage "setsid is unavailable" 1
 [[ -f "${CONFIG}" && ! -L "${CONFIG}" ]] || fail_stage "PT config must be a regular non-symlink file: ${CONFIG}" 1
 verify_config_contract
 validate_worker_request
+validate_active_worker_request
 validate_refreeze_request
 validate_stop_mode
 verify_frozen_inputs
@@ -1279,11 +1334,14 @@ if (( DATA_FREE_BYTES < MIN_DATA_START_BYTES )); then
   fail_stage "initial /data space gate failed: available=${DATA_FREE_BYTES} minimum=${MIN_DATA_START_BYTES}" 1
 fi
 initial_gpu_capacity_gate
-stage_ok PREREQUISITES "config=${CONFIG} config_workers=${CONFIG_WORKERS_PER_GPU} pilot_workers=${GPU_PILOT_WORKERS_PER_GPU} requested_formal_workers=${REQUESTED_FORMAL_WORKERS} gpu_ids=${GPU_IDS_CSV} available_bytes=${DATA_FREE_BYTES}"
+stage_ok PREREQUISITES "config=${CONFIG} config_workers=${CONFIG_WORKERS_PER_GPU} pilot_workers=${GPU_PILOT_WORKERS_PER_GPU} identity_workers=${IDENTITY_WORKERS_PER_GPU} active_workers=${ACTIVE_WORKERS_PER_GPU} worker_policy=identity_cap_plus_runtime_downshift gpu_ids=${GPU_IDS_CSV} available_bytes=${DATA_FREE_BYTES} pilot_reused=${PILOT_REUSED}"
 
-set_stage PREFLIGHT "official PT preflight with dual CUDA 0,1 workers_per_gpu=${GPU_PILOT_WORKERS_PER_GPU}"
-if env BRICKNET_OFFICIAL_PT_RENDER_CONFIG="${CONFIG}" "${OFFICIAL_LAUNCHER}" --preflight-only --workers-per-gpu "${GPU_PILOT_WORKERS_PER_GPU}"; then
-  stage_ok PREFLIGHT_OK "official PT preflight passed"
+set_stage PREFLIGHT "official PT preflight with dual CUDA 0,1 identity_workers_per_gpu=${IDENTITY_WORKERS_PER_GPU} active_workers_per_gpu=${ACTIVE_WORKERS_PER_GPU}"
+if env BRICKNET_OFFICIAL_PT_RENDER_CONFIG="${CONFIG}" "${OFFICIAL_LAUNCHER}" \
+  --preflight-only \
+  --workers-per-gpu "${IDENTITY_WORKERS_PER_GPU}" \
+  --active-workers-per-gpu "${ACTIVE_WORKERS_PER_GPU}"; then
+  stage_ok PREFLIGHT_OK "official PT preflight passed identity_workers_per_gpu=${IDENTITY_WORKERS_PER_GPU} active_workers_per_gpu=${ACTIVE_WORKERS_PER_GPU}"
 else
   preflight_rc="$?"
   fail_stage "official PT preflight failed" "${preflight_rc}"
